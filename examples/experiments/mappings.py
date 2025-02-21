@@ -2,10 +2,12 @@ from experiments.ram_insertion.config import TrainConfig as RAMInsertionTrainCon
 from experiments.usb_pickup_insertion.config import TrainConfig as USBPickupInsertionTrainConfig
 from experiments.object_handover.config import TrainConfig as ObjectHandoverTrainConfig
 from experiments.egg_flip.config import TrainConfig as EggFlipTrainConfig
+from experiments.peg_insertion.config import TrainConfig as PegInsertionTrainConfig
 
 CONFIG_MAPPING = {
                 "ram_insertion": RAMInsertionTrainConfig,
                 "usb_pickup_insertion": USBPickupInsertionTrainConfig,
                 "object_handover": ObjectHandoverTrainConfig,
                 "egg_flip": EggFlipTrainConfig,
+                "peg_insertion": PegInsertionTrainConfig
                }

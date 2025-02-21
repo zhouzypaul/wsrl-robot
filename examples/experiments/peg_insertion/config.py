@@ -16,78 +16,105 @@ from serl_launcher.wrappers.chunking import ChunkingWrapper
 from serl_launcher.networks.reward_classifier import load_classifier_func
 
 from experiments.config import DefaultTrainingConfig
-from experiments.ram_insertion.wrapper import RAMEnv
+from experiments.peg_insertion.wrapper import PegEnv
+
 
 class EnvConfig(DefaultEnvConfig):
-    SERVER_URL = "http://127.0.0.2:5000/"
+    SERVER_URL = "http://127.0.0.1:5000/"
     REALSENSE_CAMERAS = {
         "wrist_1": {
-            "serial_number": "127122270146",
+            "serial_number": "128422272758",
             "dim": (1280, 720),
             "exposure": 40000,
         },
         "wrist_2": {
-            "serial_number": "127122270350",
+            "serial_number": "127122270572",
             "dim": (1280, 720),
             "exposure": 40000,
         },
     }
     IMAGE_CROP = {
-        "wrist_1": lambda img: img[150:450, 350:1100],
+        "wrist_1": lambda img: img[150:450, 350:1100],  # TODO: might need to change this
         "wrist_2": lambda img: img[100:500, 400:900],
     }
-    TARGET_POSE = np.array([0.5881241235410154,-0.03578590131997776,0.27843494179085326, np.pi, 0, 0])
-    GRASP_POSE = np.array([0.5857508505445138,-0.22036261105675414,0.2731021902359492, np.pi, 0, 0])
-    RESET_POSE = TARGET_POSE + np.array([0, 0, 0.05, 0, 0.05, 0])
-    ABS_POSE_LIMIT_LOW = TARGET_POSE - np.array([0.03, 0.02, 0.01, 0.01, 0.1, 0.4])
-    ABS_POSE_LIMIT_HIGH = TARGET_POSE + np.array([0.03, 0.02, 0.05, 0.01, 0.1, 0.4])
+    TARGET_POSE = np.array([0.5525251855748088,-0.16542291925229702,0.11440050189486062,3.10269074648499,-0.037261335563726794,1.5832450870275565])  # peg fully inserted
+    # GRASP_POSE = np.array([0.5857508505445138,-0.22036261105675414,0.2731021902359492, np.pi, 0, 0])  # when grasping peg sitting on the holder
+    RESET_POSE = TARGET_POSE + np.array([0, 0, 0.05, 0, 0.05, 0])  # where the arm should reset to 
+
+    # randomness in reset
     RANDOM_RESET = True
-    RANDOM_XY_RANGE = 0.02
-    RANDOM_RZ_RANGE = 0.05
-    ACTION_SCALE = (0.01, 0.06, 1)
-    DISPLAY_IMAGE = True
-    MAX_EPISODE_LENGTH = 100
+    RANDOM_XY_RANGE = 0.05
+    RANDOM_RZ_RANGE = np.pi / 6
+    
+    # bouding box for the pos
+    ABS_POSE_LIMIT_LOW = np.array(
+        [
+            TARGET_POSE[0] - RANDOM_XY_RANGE,
+            TARGET_POSE[1] - RANDOM_XY_RANGE,
+            TARGET_POSE[2],
+            TARGET_POSE[3] - 0.01,
+            TARGET_POSE[4] - 0.01,
+            TARGET_POSE[5] - RANDOM_RZ_RANGE,
+        ]
+    )
+    ABS_POSE_LIMIT_HIGH = np.array(
+        [
+            TARGET_POSE[0] + RANDOM_XY_RANGE,
+            TARGET_POSE[1] + RANDOM_XY_RANGE,
+            TARGET_POSE[2] + 0.2,
+            TARGET_POSE[3] + 0.01,
+            TARGET_POSE[4] + 0.01,
+            TARGET_POSE[5] + RANDOM_RZ_RANGE,
+        ]
+    )
+    
+    ACTION_SCALE = (0.05, 0.1, 1)  # (_, _, gripper)
+    DISPLAY_IMAGE = False
+    MAX_EPISODE_LENGTH = 500  # TODO: 100 --> 300
     COMPLIANCE_PARAM = {
         "translational_stiffness": 2000,
         "translational_damping": 89,
         "rotational_stiffness": 150,
         "rotational_damping": 7,
         "translational_Ki": 0,
-        "translational_clip_x": 0.0075,
-        "translational_clip_y": 0.0016,
-        "translational_clip_z": 0.0055,
-        "translational_clip_neg_x": 0.002,
-        "translational_clip_neg_y": 0.0016,
-        "translational_clip_neg_z": 0.005,
-        "rotational_clip_x": 0.01,
-        "rotational_clip_y": 0.025,
-        "rotational_clip_z": 0.005,
-        "rotational_clip_neg_x": 0.01,
-        "rotational_clip_neg_y": 0.025,
-        "rotational_clip_neg_z": 0.005,
+        "translational_clip_x": 0.003,
+        "translational_clip_y": 0.003,
+        "translational_clip_z": 0.01,
+        "translational_clip_neg_x": 0.003,
+        "translational_clip_neg_y": 0.003,
+        "translational_clip_neg_z": 0.01,
+        "rotational_clip_x": 0.02,
+        "rotational_clip_y": 0.02,
+        "rotational_clip_z": 0.02,
+        "rotational_clip_neg_x": 0.02,
+        "rotational_clip_neg_y": 0.02,
+        "rotational_clip_neg_z": 0.02,
         "rotational_Ki": 0,
     }
     PRECISION_PARAM = {
-        "translational_stiffness": 2000,
+        "translational_stiffness": 3000,
         "translational_damping": 89,
-        "rotational_stiffness": 250,
+        "rotational_stiffness": 300,
         "rotational_damping": 9,
-        "translational_Ki": 0.0,
-        "translational_clip_x": 0.1,
-        "translational_clip_y": 0.1,
-        "translational_clip_z": 0.1,
-        "translational_clip_neg_x": 0.1,
-        "translational_clip_neg_y": 0.1,
-        "translational_clip_neg_z": 0.1,
-        "rotational_clip_x": 0.5,
-        "rotational_clip_y": 0.5,
-        "rotational_clip_z": 0.5,
-        "rotational_clip_neg_x": 0.5,
-        "rotational_clip_neg_y": 0.5,
-        "rotational_clip_neg_z": 0.5,
-        "rotational_Ki": 0.0,
+        "translational_Ki": 0.1,
+        "translational_clip_x": 0.01,
+        "translational_clip_y": 0.01,
+        "translational_clip_z": 0.01,
+        "translational_clip_neg_x": 0.01,
+        "translational_clip_neg_y": 0.01,
+        "translational_clip_neg_z": 0.01,
+        "rotational_clip_x": 0.05,
+        "rotational_clip_y": 0.05,
+        "rotational_clip_z": 0.05,
+        "rotational_clip_neg_x": 0.05,
+        "rotational_clip_neg_y": 0.05,
+        "rotational_clip_neg_z": 0.05,
+        "rotational_Ki": 0.1,
     }
 
+    # other original config from SERL code
+    # REWARD_THRESHOLD: np.ndarray = np.array([0.01, 0.01, 0.01, 0.2, 0.2, 0.2])
+    # APPLY_GRIPPER_PENALTY = False
 
 class TrainConfig(DefaultTrainingConfig):
     image_keys = ["wrist_1", "wrist_2"]
@@ -100,7 +127,7 @@ class TrainConfig(DefaultTrainingConfig):
     setup_mode = "single-arm-fixed-gripper"
 
     def get_environment(self, fake_env=False, save_video=False, classifier=False):
-        env = RAMEnv(
+        env = PegEnv(
             fake_env=fake_env,
             save_video=save_video,
             config=EnvConfig(),
@@ -122,8 +149,9 @@ class TrainConfig(DefaultTrainingConfig):
 
             def reward_func(obs):
                 sigmoid = lambda x: 1 / (1 + jnp.exp(-x))
-                # added check for z position to further robustify classifier, but should work without as well
-                return int(sigmoid(classifier(obs)) > 0.85 and obs['state'][0, 6] > 0.04)
+                # (zhouzypaul: removed) added check for z position to further robustify classifier, but should work without as well
+                prob = sigmoid(classifier(obs))[0]  # 0 to get the item from array
+                return int(prob > 0.85)
 
             env = MultiCameraBinaryRewardClassifierWrapper(env, reward_func)
         return env

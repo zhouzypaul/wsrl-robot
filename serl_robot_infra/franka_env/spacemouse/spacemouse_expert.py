@@ -57,5 +57,5 @@ class SpaceMouseExpert:
         return np.array(action), buttons
     
     def close(self):
-        # pyspacemouse.close()
+        pyspacemouse.close()
         self.process.terminate()

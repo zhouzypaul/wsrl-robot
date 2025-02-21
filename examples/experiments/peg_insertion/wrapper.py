@@ -8,7 +8,8 @@ from pynput import keyboard
 
 from franka_env.envs.franka_env import FrankaEnv
 
-class RAMEnv(FrankaEnv):
+
+class PegEnv(FrankaEnv):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.should_regrasp = False
@@ -35,7 +36,7 @@ class RAMEnv(FrankaEnv):
         # pull up
         self._update_currpos()
         reset_pose = copy.deepcopy(self.currpos)
-        reset_pose[2] = self.resetpos[2] + 0.04
+        reset_pose[2] = self.resetpos[2] + 0.10
         self.interpolate_move(reset_pose, timeout=1)
 
         # perform joint reset if needed

@@ -41,6 +41,8 @@ def main(_):
     )
 
     success_paths = glob.glob(os.path.join(os.getcwd(), "classifier_data", "*success*.pkl"))
+    if len(success_paths) == 0:
+        raise RuntimeError("No success data found.")
     for path in success_paths:
         success_data = pkl.load(open(path, "rb"))
         for trans in success_data:
@@ -65,6 +67,8 @@ def main(_):
         include_label=True,
     )
     failure_paths = glob.glob(os.path.join(os.getcwd(), "classifier_data", "*failure*.pkl"))
+    if len(failure_paths) == 0:
+        raise RuntimeError("No failure data found.")
     for path in failure_paths:
         failure_data = pkl.load(
             open(path, "rb")

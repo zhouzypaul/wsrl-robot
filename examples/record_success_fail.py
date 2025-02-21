@@ -63,6 +63,7 @@ def main(_):
             failures.append(transition)
 
         if done or truncated:
+            print("resetting")
             obs, _ = env.reset()
 
     if not os.path.exists("./classifier_data"):

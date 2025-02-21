@@ -66,6 +66,9 @@ def main(_):
     with open(file_name, "wb") as f:
         pkl.dump(transitions, f)
         print(f"saved {success_needed} demos to {file_name}")
+    
+    # Ensure proper cleanup
+    env.close()
 
 if __name__ == "__main__":
     app.run(main)
