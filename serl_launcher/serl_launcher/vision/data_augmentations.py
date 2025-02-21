@@ -35,6 +35,7 @@ def batched_random_crop(img, rng, *, padding, num_batch_dims: int = 1):
     img = jnp.reshape(img, original_shape)
     return img
 
+
 def resize(image, image_dim):
     assert len(image_dim) == 2
     new_shape = list(image.shape)

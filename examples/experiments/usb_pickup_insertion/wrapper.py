@@ -1,18 +1,20 @@
+import copy
+import time
 from typing import OrderedDict
-from franka_env.camera.rs_capture import RSCapture
-from franka_env.camera.video_capture import VideoCapture
-from franka_env.utils.rotations import euler_2_quat
+
+import gymnasium as gym
 import numpy as np
 import requests
-import copy
-import gymnasium as gym
-import time
+from franka_env.camera.rs_capture import RSCapture
+from franka_env.camera.video_capture import VideoCapture
 from franka_env.envs.franka_env import FrankaEnv
+from franka_env.utils.rotations import euler_2_quat
+
 
 class USBEnv(FrankaEnv):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-    
+
     def init_cameras(self, name_serial_dict=None):
         """Init both wrist cameras."""
         if self.cap is not None:  # close cameras if they are already open
@@ -23,9 +25,7 @@ class USBEnv(FrankaEnv):
             if cam_name == "side_classifier":
                 self.cap["side_classifier"] = self.cap["side_policy"]
             else:
-                cap = VideoCapture(
-                    RSCapture(name=cam_name, **kwargs)
-                )
+                cap = VideoCapture(RSCapture(name=cam_name, **kwargs))
                 self.cap[cam_name] = cap
 
     def reset(self, **kwargs):
@@ -35,7 +35,7 @@ class USBEnv(FrankaEnv):
         time.sleep(0.1)
         requests.post(self.url + "update_param", json=self.config.PRECISION_PARAM)
         self._send_gripper_command(1.0)
-        
+
         # Move above the target pose
         target = copy.deepcopy(self.currpos)
         target[2] = self.config.TARGET_POSE[2] + 0.05
@@ -57,7 +57,7 @@ class USBEnv(FrankaEnv):
         self._update_currpos()
         obs = self._get_obs()
         return obs, info
-    
+
     def interpolate_move(self, goal: np.ndarray, timeout: float):
         """Move the robot to the goal position with linear interpolation."""
         if goal.shape == (6,):
@@ -65,7 +65,7 @@ class USBEnv(FrankaEnv):
         self._send_pos_command(goal)
         time.sleep(timeout)
         self._update_currpos()
-    
+
     def go_to_reset(self, joint_reset=False):
         """
         The concrete steps to perform reset should be

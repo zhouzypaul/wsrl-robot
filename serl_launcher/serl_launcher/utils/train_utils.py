@@ -1,37 +1,44 @@
 import os
 import pickle as pkl
-import requests
 from collections import defaultdict
-from tqdm import tqdm
-import matplotlib.pyplot as plt
 
 import imageio
 import jax
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 import numpy as np
+import requests
 import tensorflow as tf
 import wandb
 from flax.core import frozen_dict
 from flax.training import checkpoints
+from tqdm import tqdm
 
-def ask_for_frame(images_dict):    
+
+def ask_for_frame(images_dict):
     # Create a new figure
     fig, axes = plt.subplots(5, 5, figsize=(15, 20))
-    
+
     # Flatten the axes array for easier indexing
     axes = axes.flatten()
     for i, (idx, img) in enumerate(images_dict.items()):
         # Display the image
         axes[i].imshow(img)
-        
+
         # Remove axis ticks
         axes[i].set_xticks([])
         axes[i].set_yticks([])
-        
+
         # Overlay the index number
-        axes[i].text(10, 30, str(idx), color='white', fontsize=12, 
-                     bbox=dict(facecolor='black', alpha=0.7))
-    
+        axes[i].text(
+            10,
+            30,
+            str(idx),
+            color="white",
+            fontsize=12,
+            bbox=dict(facecolor="black", alpha=0.7),
+        )
+
     plt.tight_layout()
     plt.show(block=False)
 
@@ -44,8 +51,9 @@ def ask_for_frame(images_dict):
             continue
 
     plt.close(fig)
-    
+
     return first_success
+
 
 def concat_batches(offline_batch, online_batch, axis=1):
     batch = defaultdict(list)

@@ -1,9 +1,8 @@
+import numpy as np
 import rospy
 from franka_gripper.msg import GraspActionGoal, MoveActionGoal
-from sensor_msgs.msg import JointState
-import numpy as np
-
 from robot_servers.gripper_server import GripperServer
+from sensor_msgs.msg import JointState
 
 
 class FrankaGripperServer(GripperServer):

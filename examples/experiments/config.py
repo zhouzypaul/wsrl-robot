@@ -1,8 +1,9 @@
 from abc import abstractmethod
 from typing import List
 
+
 class DefaultTrainingConfig:
-    """Default training configuration. """
+    """Default training configuration."""
 
     agent: str = "drq"
     max_traj_length: int = 100
@@ -32,16 +33,15 @@ class DefaultTrainingConfig:
     image_keys: List[str] = None
     classifier_keys: List[str] = None
     proprio_keys: List[str] = None
-    
-    # "single-arm-learned-gripper", "dual-arm-learned-gripper" for with learned gripper, 
+
+    # "single-arm-learned-gripper", "dual-arm-learned-gripper" for with learned gripper,
     # "single-arm-fixed-gripper", "dual-arm-fixed-gripper" for without learned gripper (i.e. pregrasped)
     setup_mode: str = "single-arm-fixed-gripper"
 
     @abstractmethod
     def get_environment(self, fake_env=False, save_video=False, classifier=False):
         raise NotImplementedError
-    
+
     @abstractmethod
     def process_demos(self, demo):
         raise NotImplementedError
-    

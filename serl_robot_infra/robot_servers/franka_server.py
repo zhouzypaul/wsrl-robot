@@ -2,19 +2,19 @@
 This file starts a control server running on the real time PC connected to the franka robot.
 In a screen run `python franka_server.py`
 """
-from flask import Flask, request, jsonify
+import subprocess
+import time
+
+import geometry_msgs.msg as geom_msg
 import numpy as np
 import rospy
-import time
-import subprocess
-from scipy.spatial.transform import Rotation as R
 from absl import app, flags
-
+from dynamic_reconfigure.client import Client as ReconfClient
+from flask import Flask, jsonify, request
 from franka_msgs.msg import ErrorRecoveryActionGoal, FrankaState
 from franka_msgs.srv import SetLoad
+from scipy.spatial.transform import Rotation as R
 from serl_franka_controllers.msg import ZeroJacobian
-import geometry_msgs.msg as geom_msg
-from dynamic_reconfigure.client import Client as ReconfClient
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string(
@@ -31,10 +31,7 @@ flags.DEFINE_list(
     [0, 0, 0, -1.9, -0, 2, 0],
     "Target joint angles for the robot to reset to",
 )
-flags.DEFINE_string("flask_url", 
-    "127.0.0.1",
-    "URL for the flask server to run on."
-)
+flags.DEFINE_string("flask_url", "127.0.0.1", "URL for the flask server to run on.")
 flags.DEFINE_string("ros_port", "11311", "Port for the ROS master to run on.")
 
 
@@ -169,7 +166,9 @@ class FrankaServer:
             self.vel = self.jacobian @ self.dq
         except:
             self.vel = np.zeros(6)
-            rospy.logwarn("Jacobian not set, end-effector velocity temporarily not available")
+            rospy.logwarn(
+                "Jacobian not set, end-effector velocity temporarily not available"
+            )
 
     def _set_jacobian(self, msg):
         jacobian = np.array(list(msg.zero_jacobian)).reshape((6, 7), order="F")
@@ -224,17 +223,16 @@ def main(_):
         "cartesian_impedance_controllerdynamic_reconfigure_compliance_param_node"
     )
 
-    rospy.wait_for_service('/franka_control/set_load')
-    set_load_service = rospy.ServiceProxy('/franka_control/set_load', SetLoad)
-
+    rospy.wait_for_service("/franka_control/set_load")
+    set_load_service = rospy.ServiceProxy("/franka_control/set_load", SetLoad)
 
     # Route for Setting Load
     @webapp.route("/set_load", methods=["POST"])
     def set_load():
         data = request.json
-        mass = data['mass']
-        F_x_center_load = data['F_x_center_load']
-        load_inertia = data['load_inertia']
+        mass = data["mass"]
+        F_x_center_load = data["F_x_center_load"]
+        load_inertia = data["load_inertia"]
         set_load_service(mass, F_x_center_load, load_inertia)
         print("Set mass to", mass)
         return "Set Load"
@@ -251,7 +249,7 @@ def main(_):
     def stop_impedance():
         robot_server.stop_impedance()
         return "Stopped impedance"
-    
+
     # Route for pose in euler angles
     @webapp.route("/getpos_euler", methods=["POST"])
     def get_pose_euler():

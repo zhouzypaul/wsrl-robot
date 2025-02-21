@@ -1,22 +1,21 @@
 import os
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-
-from franka_env.envs.wrappers import (
-    Quat2EulerWrapper,
-    SpacemouseIntervention,
-    MultiCameraBinaryRewardClassifierWrapper,
-    GripperCloseEnv
-)
-from franka_env.envs.relative_env import RelativeFrame
-from franka_env.envs.franka_env import DefaultEnvConfig
-from serl_launcher.wrappers.serl_obs_wrappers import SERLObsWrapper
-from serl_launcher.wrappers.chunking import ChunkingWrapper
-from serl_launcher.networks.reward_classifier import load_classifier_func
-
 from experiments.config import DefaultTrainingConfig
 from experiments.peg_insertion.wrapper import PegEnv
+from franka_env.envs.franka_env import DefaultEnvConfig
+from franka_env.envs.relative_env import RelativeFrame
+from franka_env.envs.wrappers import (
+    GripperCloseEnv,
+    MultiCameraBinaryRewardClassifierWrapper,
+    Quat2EulerWrapper,
+    SpacemouseIntervention,
+)
+from serl_launcher.networks.reward_classifier import load_classifier_func
+from serl_launcher.wrappers.chunking import ChunkingWrapper
+from serl_launcher.wrappers.serl_obs_wrappers import SERLObsWrapper
 
 
 class EnvConfig(DefaultEnvConfig):
@@ -34,18 +33,31 @@ class EnvConfig(DefaultEnvConfig):
         },
     }
     IMAGE_CROP = {
-        "wrist_1": lambda img: img[150:450, 350:1100],  # TODO: might need to change this
+        "wrist_1": lambda img: img[
+            150:450, 350:1100
+        ],  # TODO: might need to change this
         "wrist_2": lambda img: img[100:500, 400:900],
     }
-    TARGET_POSE = np.array([0.5525251855748088,-0.16542291925229702,0.11440050189486062,3.10269074648499,-0.037261335563726794,1.5832450870275565])  # peg fully inserted
+    TARGET_POSE = np.array(
+        [
+            0.5525251855748088,
+            -0.16542291925229702,
+            0.11440050189486062,
+            3.10269074648499,
+            -0.037261335563726794,
+            1.5832450870275565,
+        ]
+    )  # peg fully inserted
     # GRASP_POSE = np.array([0.5857508505445138,-0.22036261105675414,0.2731021902359492, np.pi, 0, 0])  # when grasping peg sitting on the holder
-    RESET_POSE = TARGET_POSE + np.array([0, 0, 0.05, 0, 0.05, 0])  # where the arm should reset to 
+    RESET_POSE = TARGET_POSE + np.array(
+        [0, 0, 0.05, 0, 0.05, 0]
+    )  # where the arm should reset to
 
     # randomness in reset
     RANDOM_RESET = True
     RANDOM_XY_RANGE = 0.05
     RANDOM_RZ_RANGE = np.pi / 6
-    
+
     # bouding box for the pos
     ABS_POSE_LIMIT_LOW = np.array(
         [
@@ -67,7 +79,7 @@ class EnvConfig(DefaultEnvConfig):
             TARGET_POSE[5] + RANDOM_RZ_RANGE,
         ]
     )
-    
+
     ACTION_SCALE = (0.05, 0.1, 1)  # (_, _, gripper)
     DISPLAY_IMAGE = False
     MAX_EPISODE_LENGTH = 500  # TODO: 100 --> 300
@@ -115,6 +127,7 @@ class EnvConfig(DefaultEnvConfig):
     # other original config from SERL code
     # REWARD_THRESHOLD: np.ndarray = np.array([0.01, 0.01, 0.01, 0.2, 0.2, 0.2])
     # APPLY_GRIPPER_PENALTY = False
+
 
 class TrainConfig(DefaultTrainingConfig):
     image_keys = ["wrist_1", "wrist_2"]

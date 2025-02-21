@@ -1,13 +1,19 @@
 import copy
+import time
+
 import gymnasium as gym
 import jax
 import numpy as np
-
 from franka_env.spacemouse.spacemouse_expert import SpaceMouseExpert
-import time
+
 
 class EggClassifierWrapper(gym.Wrapper):
-    def __init__(self, env: gym.Env, reward_classifier_func: callable, confidence_threshold: float = 0.9):
+    def __init__(
+        self,
+        env: gym.Env,
+        reward_classifier_func: callable,
+        confidence_threshold: float = 0.9,
+    ):
         super().__init__(env)
         self.reward_classifier_func = reward_classifier_func
         self.confidence_threshold = confidence_threshold
@@ -24,8 +30,10 @@ class EggClassifierWrapper(gym.Wrapper):
             input("We lost the egg!!! Put egg back and press Enter... ")
             obs, info = self.env.reset()
             self.egg_initial, _ = self.compute_reward(obs)
-        obs['state'] = np.concatenate((obs['state'], np.array([self.egg_initial])[None]), axis=-1)
-        info['succeed'] = 0
+        obs["state"] = np.concatenate(
+            (obs["state"], np.array([self.egg_initial])[None]), axis=-1
+        )
+        info["succeed"] = 0
         return obs, info
 
     def compute_reward(self, obs):
@@ -40,14 +48,19 @@ class EggClassifierWrapper(gym.Wrapper):
         egg_class, confidence = self.compute_reward(obs)
         info["succeed"] = 0
         if confidence >= self.confidence_threshold:
-            if (egg_class == 1 and self.egg_initial == 0) or (egg_class == 0 and self.egg_initial == 1):
+            if (egg_class == 1 and self.egg_initial == 0) or (
+                egg_class == 0 and self.egg_initial == 1
+            ):
                 print(f"Egg class: {egg_class}, Confidence: {confidence}")
                 rew = 1
                 done = True
                 info["succeed"] = 1
-        obs['state'] = np.concatenate((obs['state'], np.array([egg_class])[None]), axis=-1)
+        obs["state"] = np.concatenate(
+            (obs["state"], np.array([egg_class])[None]), axis=-1
+        )
         return obs, rew, done, truncated, info
-    
+
+
 class EggFlipActionWrapper(gym.ActionWrapper):
     """Only control translation x, z, and rotation y."""
 
@@ -61,6 +74,7 @@ class EggFlipActionWrapper(gym.ActionWrapper):
         new_action[2] = action[1]
         new_action[4] = action[2]
         return new_action
+
 
 class EggFlipSpacemouseIntervention(gym.ActionWrapper):
     def __init__(self, env):
@@ -78,7 +92,7 @@ class EggFlipSpacemouseIntervention(gym.ActionWrapper):
         """
         expert_a, buttons = self.expert.get_action()
         expert_a = np.array([expert_a[0], expert_a[2], expert_a[4]])
-        
+
         self.left, self.right = tuple(buttons)
 
         if np.linalg.norm(expert_a) > 0.001:
@@ -98,4 +112,3 @@ class EggFlipSpacemouseIntervention(gym.ActionWrapper):
         info["left"] = self.left
         info["right"] = self.right
         return obs, rew, done, truncated, info
-    

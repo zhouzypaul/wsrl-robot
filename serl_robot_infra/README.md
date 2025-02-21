@@ -21,7 +21,7 @@ There is a Flask server which sends commands to the robot via ROS. There is a gy
     ```
 
 ### Usage
-To start using the robot, first power on the robot (small switch on the back of robot control box on the floor). Calibrate the end-effector payload in the browser interface before proceeding to ensure accuarcy of the impedance controller. Then, unlock the robot, enable FCI, and put into execution mode (FR3 only). 
+To start using the robot, first power on the robot (small switch on the back of robot control box on the floor). Calibrate the end-effector payload in the browser interface before proceeding to ensure accuarcy of the impedance controller. Then, unlock the robot, enable FCI, and put into execution mode (FR3 only).
 
 The following command are used to start the impedance controller and robot server that the gym environment communicates with. For bimmanual setup, you can run completely independent servers for each arm even if they have different firmware version (we have a Panda and a FR3) by using different catkin_ws, ROS_MASTER_URI, and flask_url. We have provided examples at [launch_left_server.sh](robot_servers/launch_left_server.sh) and [launch_right_server.sh](robot_servers/launch_right_server.sh)
 
@@ -85,7 +85,7 @@ curl -X POST <flask_url>:5000/startimp # Start the impedance controller (**Only 
 ```
 
 ## Egg Flip Controller
-This is only a very naive wrench based controller that we implemented for the egg flip task specifically. We are release it only for reference and those really interested in seeing how we did the dynamic tasks. 
+This is only a very naive wrench based controller that we implemented for the egg flip task specifically. We are release it only for reference and those really interested in seeing how we did the dynamic tasks.
 
 <span style="color: red">
 DISCLAIMER: DO NOT use this unless you know what you are doing and accept the risk of damaging the robot. However, if you do decide to run this, make sure there is clear space in front, below, and above the robot as launching the server will cause the robot to move into the reset position.</span>

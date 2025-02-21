@@ -1,21 +1,20 @@
 import os
-import jax
-import numpy as np
-import jax.numpy as jnp
 
+import jax
+import jax.numpy as jnp
+import numpy as np
+from experiments.config import DefaultTrainingConfig
+from experiments.usb_pickup_insertion.wrapper import GripperPenaltyWrapper, USBEnv
+from franka_env.envs.franka_env import DefaultEnvConfig
+from franka_env.envs.relative_env import RelativeFrame
 from franka_env.envs.wrappers import (
+    MultiCameraBinaryRewardClassifierWrapper,
     Quat2EulerWrapper,
     SpacemouseIntervention,
-    MultiCameraBinaryRewardClassifierWrapper,
 )
-from franka_env.envs.relative_env import RelativeFrame
-from franka_env.envs.franka_env import DefaultEnvConfig
-from serl_launcher.wrappers.serl_obs_wrappers import SERLObsWrapper
-from serl_launcher.wrappers.chunking import ChunkingWrapper
 from serl_launcher.networks.reward_classifier import load_classifier_func
-
-from experiments.config import DefaultTrainingConfig
-from experiments.usb_pickup_insertion.wrapper import USBEnv, GripperPenaltyWrapper
+from serl_launcher.wrappers.chunking import ChunkingWrapper
+from serl_launcher.wrappers.serl_obs_wrappers import SERLObsWrapper
 
 
 class EnvConfig(DefaultEnvConfig):
@@ -42,11 +41,15 @@ class EnvConfig(DefaultEnvConfig):
             "exposure": 13000,
         },
     }
-    IMAGE_CROP = {"wrist_1": lambda img: img[50:-200, 200:-200],
-                  "wrist_2": lambda img: img[:-200, 200:-200],
-                  "side_policy": lambda img: img[250:500, 350:650],
-                  "side_classifier": lambda img: img[270:398, 500:628]}
-    TARGET_POSE = np.array([0.553,0.1769683108549487,0.25097833796596336, np.pi, 0, -np.pi/2])
+    IMAGE_CROP = {
+        "wrist_1": lambda img: img[50:-200, 200:-200],
+        "wrist_2": lambda img: img[:-200, 200:-200],
+        "side_policy": lambda img: img[250:500, 350:650],
+        "side_classifier": lambda img: img[270:398, 500:628],
+    }
+    TARGET_POSE = np.array(
+        [0.553, 0.1769683108549487, 0.25097833796596336, np.pi, 0, -np.pi / 2]
+    )
     RESET_POSE = TARGET_POSE + np.array([0, 0.03, 0.05, 0, 0, 0])
     ACTION_SCALE = np.array([0.015, 0.1, 1])
     RANDOM_RESET = True
@@ -111,9 +114,7 @@ class TrainConfig(DefaultTrainingConfig):
     setup_mode = "single-arm-learned-gripper"
 
     def get_environment(self, fake_env=False, save_video=False, classifier=False):
-        env = USBEnv(
-            fake_env=fake_env, save_video=save_video, config=EnvConfig()
-        )
+        env = USBEnv(fake_env=fake_env, save_video=save_video, config=EnvConfig())
         if not fake_env:
             env = SpacemouseIntervention(env)
         env = RelativeFrame(env)

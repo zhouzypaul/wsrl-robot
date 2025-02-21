@@ -1,23 +1,23 @@
 import os
+
 import gymnasium as gym
 import jax
 import jax.numpy as jnp
-
+import numpy as np
+from experiments.config import DefaultTrainingConfig
+from experiments.object_handover.wrapper import GripperPenaltyWrapper, HandOffEnv
+from franka_env.envs.dual_franka_env import DualFrankaEnv
+from franka_env.envs.franka_env import DefaultEnvConfig
+from franka_env.envs.relative_env import DualRelativeFrame
 from franka_env.envs.wrappers import (
     DualQuat2EulerWrapper,
     DualSpacemouseIntervention,
     MultiCameraBinaryRewardClassifierWrapper,
 )
-from franka_env.envs.relative_env import DualRelativeFrame
-from franka_env.envs.franka_env import DefaultEnvConfig
-from franka_env.envs.dual_franka_env import DualFrankaEnv
-import numpy as np
-from serl_launcher.wrappers.serl_obs_wrappers import SERLObsWrapper
-from serl_launcher.wrappers.chunking import ChunkingWrapper
 from serl_launcher.networks.reward_classifier import load_classifier_func
+from serl_launcher.wrappers.chunking import ChunkingWrapper
+from serl_launcher.wrappers.serl_obs_wrappers import SERLObsWrapper
 
-from experiments.config import DefaultTrainingConfig
-from experiments.object_handover.wrapper import HandOffEnv, GripperPenaltyWrapper
 
 class LeftEnvConfig(DefaultEnvConfig):
     SERVER_URL = "http://127.0.0.1:5000/"
@@ -32,7 +32,7 @@ class LeftEnvConfig(DefaultEnvConfig):
             "dim": (1280, 720),
             "exposure": 10000,
         },
-        "side_classifier": {}
+        "side_classifier": {},
     }
     IMAGE_CROP = {
         "wrist": lambda img: img[:, 250:],
@@ -40,8 +40,8 @@ class LeftEnvConfig(DefaultEnvConfig):
         "side_classifier": lambda img: img[230:358, 800:1056],
     }
     RESET_POSE = np.array([0.6, -0.02, 0.42, np.pi, 0, 0])
-    ABS_POSE_LIMIT_LOW = np.array([0.4, -0.03, 0.3, np.pi-0.01, -0.3, 0])
-    ABS_POSE_LIMIT_HIGH = np.array([0.67, -0.01, 0.42, np.pi+0.01, 0.0, 0.01])
+    ABS_POSE_LIMIT_LOW = np.array([0.4, -0.03, 0.3, np.pi - 0.01, -0.3, 0])
+    ABS_POSE_LIMIT_HIGH = np.array([0.67, -0.01, 0.42, np.pi + 0.01, 0.0, 0.01])
     RANDOM_RESET = False
     ACTION_SCALE = (0.04, 0.2, 1)
     DISPLAY_IMAGE = False
@@ -102,8 +102,8 @@ class RightEnvConfig(DefaultEnvConfig):
         "wrist": lambda img: img[::-1, ::-1][:, :900],
     }
     RESET_POSE = np.array([0.4, 0.0, 0.5, np.pi, 0, np.pi])
-    ABS_POSE_LIMIT_LOW = np.array([0.32, -0.01, 0.36, np.pi-0.01, 0.0, np.pi-0.01])
-    ABS_POSE_LIMIT_HIGH = np.array([0.67, 0.01, 0.5, np.pi+0.01, 0.3, np.pi+0.01])
+    ABS_POSE_LIMIT_LOW = np.array([0.32, -0.01, 0.36, np.pi - 0.01, 0.0, np.pi - 0.01])
+    ABS_POSE_LIMIT_HIGH = np.array([0.67, 0.01, 0.5, np.pi + 0.01, 0.3, np.pi + 0.01])
     RANDOM_RESET = False
     ACTION_SCALE = (0.04, 0.2, 1)
     DISPLAY_IMAGE = False
@@ -202,7 +202,7 @@ class TrainConfig(DefaultTrainingConfig):
             def reward_func(obs):
                 sigmoid = lambda x: 1 / (1 + jnp.exp(-x))
                 p = sigmoid(classifier(obs))
-                return int(p > 0.75 and obs['state'][0, 0] > 0.5)
+                return int(p > 0.75 and obs["state"][0, 0] > 0.5)
 
             env = MultiCameraBinaryRewardClassifierWrapper(env, reward_func)
         env = GripperPenaltyWrapper(env, penalty=-0.02)

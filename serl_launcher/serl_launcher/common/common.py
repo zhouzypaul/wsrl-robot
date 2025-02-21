@@ -1,5 +1,5 @@
 import functools
-from typing import Any, Callable, Dict, Mapping, Sequence, Tuple, Union, Optional
+from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Tuple, Union
 
 import flax
 import flax.linen as nn
@@ -7,7 +7,6 @@ import jax
 import jax.numpy as jnp
 import optax
 from flax import struct
-
 from serl_launcher.common.typing import Params, PRNGKey
 
 nonpytree_field = functools.partial(flax.struct.field, pytree_node=False)
@@ -223,7 +222,14 @@ class JaxRLTrainState(struct.PyTreeNode):
 
     @classmethod
     def create(
-        cls, *, apply_fn, params, txs, target_params=None, rng=jax.random.PRNGKey(0), epsilon=0.0
+        cls,
+        *,
+        apply_fn,
+        params,
+        txs,
+        target_params=None,
+        rng=jax.random.PRNGKey(0),
+        epsilon=0.0,
     ):
         """
         Initializes a new train state.

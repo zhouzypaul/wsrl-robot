@@ -1,12 +1,13 @@
 import copy
 import time
-from franka_env.utils.rotations import euler_2_quat
-from scipy.spatial.transform import Rotation as R
+
 import numpy as np
 import requests
-from pynput import keyboard
-
 from franka_env.envs.franka_env import FrankaEnv
+from franka_env.utils.rotations import euler_2_quat
+from pynput import keyboard
+from scipy.spatial.transform import Rotation as R
+
 
 class RAMEnv(FrankaEnv):
     def __init__(self, **kwargs):
@@ -17,15 +18,14 @@ class RAMEnv(FrankaEnv):
             if str(key) == "Key.f1":
                 self.should_regrasp = True
 
-        listener = keyboard.Listener(
-            on_press=on_press)
+        listener = keyboard.Listener(on_press=on_press)
         listener.start()
 
     def go_to_reset(self, joint_reset=False):
         """
         Move to the rest position defined in base class.
         Add a small z offset before going to rest to avoid collision with object.
-        """        
+        """
         # use compliance mode for coupled reset
         self._update_currpos()
         self._send_pos_command(self.currpos)
@@ -64,7 +64,6 @@ class RAMEnv(FrankaEnv):
         # Change to compliance mode
         requests.post(self.url + "update_param", json=self.config.COMPLIANCE_PARAM)
 
-
     def regrasp(self):
         # use compliance mode for coupled reset
         self._update_currpos()
@@ -100,7 +99,6 @@ class RAMEnv(FrankaEnv):
 
         self.interpolate_move(self.config.RESET_POSE, timeout=1)
         time.sleep(0.5)
-
 
     def reset(self, joint_reset=False, **kwargs):
         self.last_gripper_act = time.time()

@@ -3,7 +3,6 @@ from typing import Callable, Optional, Sequence
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
-
 from serl_launcher.common.common import default_init
 
 

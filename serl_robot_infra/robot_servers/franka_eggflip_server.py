@@ -2,18 +2,18 @@
 This file starts a control server running on the real time PC connected to the franka robot.
 In a screen run `python franka_server.py`
 """
-from flask import Flask, request, jsonify
+import subprocess
+import time
+
+import geometry_msgs.msg as geom_msg
 import numpy as np
 import rospy
-import time
-import subprocess
-from scipy.spatial.transform import Rotation as R
-from absl import app, flags
-
-from franka_msgs.msg import ErrorRecoveryActionGoal, FrankaState
-from serl_franka_controllers.msg import ZeroJacobian
-import geometry_msgs.msg as geom_msg
 import std_msgs.msg as std_msg
+from absl import app, flags
+from flask import Flask, jsonify, request
+from franka_msgs.msg import ErrorRecoveryActionGoal, FrankaState
+from scipy.spatial.transform import Rotation as R
+from serl_franka_controllers.msg import ZeroJacobian
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string(
@@ -25,10 +25,7 @@ flags.DEFINE_string(
 flags.DEFINE_string(
     "gripper_type", "Robotiq", "Type of gripper to use: Robotiq, Franka, or None"
 )
-flags.DEFINE_string("flask_url", 
-    "127.0.0.1",
-    "URL for the flask server to run on."
-)
+flags.DEFINE_string("flask_url", "127.0.0.1", "URL for the flask server to run on.")
 flags.DEFINE_string("ros_port", "11311", "Port for the ROS master to run on.")
 
 
@@ -115,7 +112,9 @@ class FrankaEggFlipServer:
             self.vel = self.jacobian @ self.dq
         except:
             self.vel = np.zeros(6)
-            rospy.logwarn("Jacobian not set, end-effector velocity temporarily not available")
+            rospy.logwarn(
+                "Jacobian not set, end-effector velocity temporarily not available"
+            )
 
     def _set_jacobian(self, msg):
         jacobian = np.array(list(msg.zero_jacobian)).reshape((6, 7), order="F")
@@ -126,14 +125,16 @@ class FrankaEggFlipServer:
 
 
 def main(_):
-    print("\033[91mHave  you read the instructions and understood the risks of running this example controller?\033[0m")
+    print(
+        "\033[91mHave  you read the instructions and understood the risks of running this example controller?\033[0m"
+    )
     response = input("Enter 'yes' to continue: ")
     if response != "yes":
         return
     print("\033[91mIs there clear space in front, below, and above the robot?\033[0m")
     response = input("Enter 'yes' to continue: ")
     if response != "yes":
-        return    
+        return
     ROS_PKG_NAME = "egg_flip_controller"
 
     ROBOT_IP = FLAGS.robot_ip
@@ -184,7 +185,7 @@ def main(_):
     def stop_wrench():
         robot_server.stop_wrench()
         return "Stopped wrench"
-    
+
     # Route for pose in euler angles
     @webapp.route("/getpos_euler", methods=["POST"])
     def get_pose_euler():
@@ -294,7 +295,9 @@ def main(_):
                 "q": np.array(robot_server.q).tolist(),
                 "dq": np.array(robot_server.dq).tolist(),
                 "jacobian": np.array(robot_server.jacobian).tolist(),
-                "gripper_pos": gripper_server.gripper_pos if GRIPPER_TYPE != "None" else 0.0,
+                "gripper_pos": gripper_server.gripper_pos
+                if GRIPPER_TYPE != "None"
+                else 0.0,
             }
         )
 

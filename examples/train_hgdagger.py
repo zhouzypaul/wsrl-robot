@@ -1,34 +1,31 @@
 #!/usr/bin/env python3
 
+import copy
+import glob
+import os
+import pickle as pkl
 import time
+
 import jax
 import jax.numpy as jnp
-from natsort import natsorted
 import numpy as np
 import tqdm
 from absl import app, flags
-from flax.training import checkpoints
-import os
-import copy
-import glob
-import pickle as pkl
-from gymnasium.wrappers.record_episode_statistics import RecordEpisodeStatistics
-from pynput import keyboard
-
-from serl_launcher.agents.continuous.bc import BCAgent
-from serl_launcher.utils.timer_utils import Timer
-
-from agentlace.trainer import TrainerServer, TrainerClient
 from agentlace.data.data_store import QueuedDataStore
-
+from agentlace.trainer import TrainerClient, TrainerServer
+from experiments.mappings import CONFIG_MAPPING
+from flax.training import checkpoints
+from gymnasium.wrappers.record_episode_statistics import RecordEpisodeStatistics
+from natsort import natsorted
+from pynput import keyboard
+from serl_launcher.agents.continuous.bc import BCAgent
+from serl_launcher.data.data_store import MemoryEfficientReplayBufferDataStore
 from serl_launcher.utils.launcher import (
     make_bc_agent,
     make_trainer_config,
     make_wandb_logger,
 )
-from serl_launcher.data.data_store import MemoryEfficientReplayBufferDataStore
-
-from experiments.mappings import CONFIG_MAPPING
+from serl_launcher.utils.timer_utils import Timer
 
 FLAGS = flags.FLAGS
 
@@ -61,13 +58,16 @@ def print_green(x):
 def print_yellow(x):
     return print("\033[93m {}\033[00m".format(x))
 
+
 should_reset = False
+
 
 def on_press(key):
     global should_reset
     if key == keyboard.Key.esc:
         should_reset = True
         print("ESC pressed. Resetting...")
+
 
 # Start the keyboard listener in a non-blocking way
 
@@ -126,11 +126,18 @@ def actor(agent: BCAgent, data_store, env, sampling_rng):
         return  # after done eval, return and exit
 
     start_step = (
-        int(os.path.basename(natsorted(glob.glob(os.path.join(FLAGS.checkpoint_path, "demo_buffer/*.pkl")))[-1])[12:-4]) + 1
-        if FLAGS.checkpoint_path and os.path.exists(os.path.join(FLAGS.checkpoint_path, "demo_buffer"))
+        int(
+            os.path.basename(
+                natsorted(
+                    glob.glob(os.path.join(FLAGS.checkpoint_path, "demo_buffer/*.pkl"))
+                )[-1]
+            )[12:-4]
+        )
+        + 1
+        if FLAGS.checkpoint_path
+        and os.path.exists(os.path.join(FLAGS.checkpoint_path, "demo_buffer"))
         else 0
     )
-
 
     client = TrainerClient(
         "actor_env",
@@ -178,9 +185,9 @@ def actor(agent: BCAgent, data_store, env, sampling_rng):
 
             next_obs, reward, done, truncated, info = env.step(actions)
             if "left" in info:
-                info.pop('left')
+                info.pop("left")
             if "right" in info:
-                info.pop('right')
+                info.pop("right")
 
             # override the action with the intervention action
             if "intervene_action" in info:
@@ -208,8 +215,8 @@ def actor(agent: BCAgent, data_store, env, sampling_rng):
 
             obs = next_obs
             if done or truncated:
-                info['episode']['intervention_count'] = intervention_count
-                info['episode']['intervention_steps'] = intervention_steps
+                info["episode"]["intervention_count"] = intervention_count
+                info["episode"]["intervention_steps"] = intervention_steps
                 stats = {"environment": info}  # send stats to the learner to log
                 client.request("send-stats", stats)
                 pbar.set_description(f"last return: {running_return}")
@@ -225,7 +232,9 @@ def actor(agent: BCAgent, data_store, env, sampling_rng):
             demo_buffer_path = os.path.join(FLAGS.checkpoint_path, "demo_buffer")
             if not os.path.exists(demo_buffer_path):
                 os.makedirs(demo_buffer_path)
-            with open(os.path.join(demo_buffer_path, f"transitions_{step}.pkl"), "wb") as f:
+            with open(
+                os.path.join(demo_buffer_path, f"transitions_{step}.pkl"), "wb"
+            ) as f:
                 pkl.dump(demo_transitions, f)
                 demo_transitions = []
 
@@ -243,6 +252,7 @@ def learner(rng, agent: BCAgent, demo_buffer, wandb_logger=None):
     """
     The learner loop, which runs when "--learner" is set to True.
     """
+
     def stats_callback(type: str, payload: dict) -> dict:
         """Callback for when server receives stats request."""
         assert type == "send-stats", f"Invalid request type: {type}"
@@ -271,15 +281,15 @@ def learner(rng, agent: BCAgent, demo_buffer, wandb_logger=None):
     update_step = 0
     if FLAGS.pretrain_steps:
         if os.path.isdir(
-            os.path.join(
-                FLAGS.checkpoint_path, f"checkpoint_{FLAGS.pretrain_steps}"
-            )
+            os.path.join(FLAGS.checkpoint_path, f"checkpoint_{FLAGS.pretrain_steps}")
         ):
             print_green(
                 f"BC checkpoint at {FLAGS.pretrain_steps} steps found, restoring BC checkpoint"
             )
             ckpt = checkpoints.restore_checkpoint(
-                os.path.abspath(FLAGS.checkpoint_path), agent.state, step=FLAGS.pretrain_steps
+                os.path.abspath(FLAGS.checkpoint_path),
+                agent.state,
+                step=FLAGS.pretrain_steps,
             )
             agent = agent.replace(state=ckpt)
             update_step = FLAGS.pretrain_steps
@@ -299,7 +309,10 @@ def learner(rng, agent: BCAgent, demo_buffer, wandb_logger=None):
                 if update_step % config.log_period == 0 and wandb_logger:
                     wandb_logger.log({"bc": bc_update_info}, step=update_step)
             checkpoints.save_checkpoint(
-                os.path.abspath(FLAGS.checkpoint_path), agent.state, step=update_step, keep=20
+                os.path.abspath(FLAGS.checkpoint_path),
+                agent.state,
+                step=update_step,
+                keep=20,
             )
             print_green("bc pretraining done and saved checkpoint")
 
@@ -308,14 +321,18 @@ def learner(rng, agent: BCAgent, demo_buffer, wandb_logger=None):
 
     # wait till the replay buffer is filled with enough data
     timer = Timer()
-    for step in tqdm.tqdm(range(FLAGS.pretrain_steps+1, config.max_steps), dynamic_ncols=True, desc="learner"):
+    for step in tqdm.tqdm(
+        range(FLAGS.pretrain_steps + 1, config.max_steps),
+        dynamic_ncols=True,
+        desc="learner",
+    ):
 
         with timer.context("train"):
             batch = next(demo_iterator)
             agent, update_info = agent.update(
                 batch,
             )
-  
+
         # publish the updated network
         if step > 0 and step % (config.steps_per_update) == 0:
             agent = jax.block_until_ready(agent)
@@ -325,11 +342,14 @@ def learner(rng, agent: BCAgent, demo_buffer, wandb_logger=None):
             wandb_logger.log(update_info, step=step)
             wandb_logger.log({"timer": timer.get_average_times()}, step=step)
 
-        if step > 0 and config.checkpoint_period and step % config.checkpoint_period == 0:
+        if (
+            step > 0
+            and config.checkpoint_period
+            and step % config.checkpoint_period == 0
+        ):
             checkpoints.save_checkpoint(
                 os.path.abspath(FLAGS.checkpoint_path), agent.state, step=step, keep=100
             )
-
 
 
 ##############################################################################
@@ -344,10 +364,10 @@ def main(_):
     rng = jax.random.PRNGKey(FLAGS.seed)
     rng, sampling_rng = jax.random.split(rng)
 
-    assert FLAGS.exp_name in CONFIG_MAPPING, 'Experiment folder not found.'
-    env = config.get_environment(fake_env=FLAGS.learner, 
-                                 save_video=False, 
-                                 classifier=FLAGS.actor)
+    assert FLAGS.exp_name in CONFIG_MAPPING, "Experiment folder not found."
+    env = config.get_environment(
+        fake_env=FLAGS.learner, save_video=False, classifier=FLAGS.actor
+    )
     env = RecordEpisodeStatistics(env)
 
     rng, sampling_rng = jax.random.split(rng)
@@ -395,7 +415,7 @@ def main(_):
                 for transition in transitions:
                     demo_buffer.insert(transition)
         print(f"demo buffer size: {len(demo_buffer)}")
-        
+
         # learner loop
         print_green("starting learner loop")
         learner(
@@ -408,13 +428,13 @@ def main(_):
     elif FLAGS.actor:
         sampling_rng = jax.device_put(sampling_rng, sharding.replicate())
         data_store = QueuedDataStore(50000)  # the queue size on the actor
-        
+
         actor(
-            agent, 
+            agent,
             data_store,
-            env, 
-            sampling_rng, 
-            )
+            env,
+            sampling_rng,
+        )
 
     else:
         raise NotImplementedError("Must be either a learner or an actor")

@@ -1,17 +1,17 @@
-import pickle as pkl
-import jax
-from jax import numpy as jnp
-import flax.linen as nn
-from flax.training.train_state import TrainState
-from flax.training import checkpoints
-import optax
-from typing import Callable, Dict, List
-import requests
 import os
-from tqdm import tqdm
+import pickle as pkl
+from typing import Callable, Dict, List
 
-from serl_launcher.vision.resnet_v1 import resnetv1_configs, PreTrainedResNetEncoder
+import flax.linen as nn
+import jax
+import optax
+import requests
+from flax.training import checkpoints
+from flax.training.train_state import TrainState
+from jax import numpy as jnp
 from serl_launcher.common.encoding import EncodingWrapper
+from serl_launcher.vision.resnet_v1 import PreTrainedResNetEncoder, resnetv1_configs
+from tqdm import tqdm
 
 
 class BinaryClassifier(nn.Module):
@@ -27,6 +27,7 @@ class BinaryClassifier(nn.Module):
         x = nn.relu(x)
         x = nn.Dense(1)(x)
         return x
+
 
 class NWayClassifier(nn.Module):
     encoder_def: nn.Module
@@ -113,7 +114,7 @@ def create_classifier(
 
     with open(file_path, "rb") as f:
         encoder_params = pkl.load(f)
-            
+
     param_count = sum(x.size for x in jax.tree_leaves(encoder_params))
     print(
         f"Loaded {param_count/1e6}M parameters from ResNet-10 pretrained on ImageNet-1K"
@@ -132,6 +133,7 @@ def create_classifier(
 
     classifier = classifier.replace(params=new_params)
     return classifier
+
 
 def load_classifier_func(
     key: jnp.ndarray,

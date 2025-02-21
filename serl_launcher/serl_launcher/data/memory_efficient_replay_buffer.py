@@ -3,10 +3,10 @@ from typing import Iterable, Optional, Tuple
 
 import gymnasium as gym
 import numpy as np
-from serl_launcher.data.dataset import DatasetDict, _sample
-from serl_launcher.data.replay_buffer import ReplayBuffer
 from flax.core import frozen_dict
 from gymnasium.spaces import Box
+from serl_launcher.data.dataset import DatasetDict, _sample
+from serl_launcher.data.replay_buffer import ReplayBuffer
 
 
 class MemoryEfficientReplayBuffer(ReplayBuffer):

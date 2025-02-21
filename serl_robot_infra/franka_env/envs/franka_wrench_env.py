@@ -1,22 +1,22 @@
 """Gym Interface for Franka"""
-import os
-import numpy as np
-import gymnasium as gym
-import cv2
 import copy
-from scipy.spatial.transform import Rotation
-import time
-import requests
+import os
 import queue
 import threading
-from datetime import datetime
+import time
 from collections import OrderedDict
+from datetime import datetime
 from typing import Dict
 
-from franka_env.camera.video_capture import VideoCapture
+import cv2
+import gymnasium as gym
+import numpy as np
+import requests
 from franka_env.camera.multi_video_capture import MultiVideoCapture
 from franka_env.camera.rs_capture import RSCapture
+from franka_env.camera.video_capture import VideoCapture
 from franka_env.utils.rotations import euler_2_quat, quat_2_euler
+from scipy.spatial.transform import Rotation
 
 
 class ImageDisplayer(threading.Thread):
@@ -33,7 +33,12 @@ class ImageDisplayer(threading.Thread):
                 break
 
             frame = np.concatenate(
-                [cv2.resize(v, (300, 300)) for k, v in img_array.items() if "full" not in k], axis=0
+                [
+                    cv2.resize(v, (300, 300))
+                    for k, v in img_array.items()
+                    if "full" not in k
+                ],
+                axis=0,
             )
 
             cv2.imshow(self.name, frame)
@@ -48,10 +53,11 @@ class DefaultWrenchEnvConfig:
 
     SERVER_URL: str = "http://127.0.0.2:5000/"
     REALSENSE_CAMERAS: Dict = {
-        "wrist_1": {"serial_number": "130322274175",
+        "wrist_1": {
+            "serial_number": "130322274175",
             "dim": (1280, 720),
             "exposure": 7000,
-            },
+        },
         "side": {
             "serial_number": "127122270146",
             "dim": (1280, 720),
@@ -66,6 +72,7 @@ class DefaultWrenchEnvConfig:
     MAX_EPISODE_LENGTH: int = 100
     WAIT_FOR_RESET: bool = False
     IMAGE_CROP: dict[str, callable] = {}
+
 
 ##############################################################################
 
@@ -84,11 +91,11 @@ class FrankaWrenchEnv(gym.Env):
         self.max_episode_length = config.MAX_EPISODE_LENGTH
         self.display_image = config.DISPLAY_IMAGE
         self.gripper_sleep = config.GRIPPER_SLEEP
-        # TODO: Pass reset pose from config to franka server and avoid hardcoding 
+        # TODO: Pass reset pose from config to franka server and avoid hardcoding
         # self.resetpos = config.RESET_POSE
 
         self._update_currpos()
-        
+
         self.last_gripper_act = time.time()
         self.lastsent = time.time()
         self.randomreset = config.RANDOM_RESET
@@ -119,12 +126,12 @@ class FrankaWrenchEnv(gym.Env):
 
         self.observation_space = gym.spaces.Dict(
             {
-                "state": gym.spaces.Dict(
-                    state_space_dict
-                ),
+                "state": gym.spaces.Dict(state_space_dict),
                 "images": gym.spaces.Dict(
-                    {key: gym.spaces.Box(0, 255, shape=(128, 128, 3), dtype=np.uint8) 
-                                for key in config.REALSENSE_CAMERAS}
+                    {
+                        key: gym.spaces.Box(0, 255, shape=(128, 128, 3), dtype=np.uint8)
+                        for key in config.REALSENSE_CAMERAS
+                    }
                 ),
             }
         )
@@ -138,10 +145,13 @@ class FrankaWrenchEnv(gym.Env):
                 self.displayer.start()
 
             from pynput import keyboard
+
             self.terminate = False
+
             def on_press(key):
                 if key == keyboard.Key.esc:
                     self.terminate = True
+
             self.listener = keyboard.Listener(on_press=on_press)
             self.listener.start()
             print("Initialized Franka")
@@ -150,7 +160,7 @@ class FrankaWrenchEnv(gym.Env):
         """standard gym step function."""
         start_time = time.time()
         action = np.clip(action, self.action_space.low, self.action_space.high)
-        action = action * self.action_scale 
+        action = action * self.action_scale
         self._send_wrench_command(action[:6])
 
         self.curr_path_length += 1
@@ -164,8 +174,13 @@ class FrankaWrenchEnv(gym.Env):
         # print(f"Time to update currpos and get obs: {time.time() - t}")
         reward = 0
         # TODO: End trajectory early if unsafe velocity etc.?
-        safety_exceeded = False 
-        done = self.curr_path_length >= self.max_episode_length or reward or safety_exceeded or self.terminate
+        safety_exceeded = False
+        done = (
+            self.curr_path_length >= self.max_episode_length
+            or reward
+            or safety_exceeded
+            or self.terminate
+        )
         return ob, int(reward), done, False, {}
 
     def get_im(self) -> Dict[str, np.ndarray]:
@@ -176,18 +191,22 @@ class FrankaWrenchEnv(gym.Env):
         try:
             all_frames = self.cap.read()
             for key, rgb in all_frames.items():
-                cropped_rgb = self.config.IMAGE_CROP[key](rgb) if key in self.config.IMAGE_CROP else rgb
+                cropped_rgb = (
+                    self.config.IMAGE_CROP[key](rgb)
+                    if key in self.config.IMAGE_CROP
+                    else rgb
+                )
                 resized = cv2.resize(
                     cropped_rgb, self.observation_space["images"][key].shape[:2][::-1]
                 )
                 images[key] = resized[..., ::-1]
                 display_images[key] = resized
                 display_images[key + "_full"] = cropped_rgb
-                full_res_images[key] = copy.deepcopy(cropped_rgb)  # Store the full resolution cropped image
+                full_res_images[key] = copy.deepcopy(
+                    cropped_rgb
+                )  # Store the full resolution cropped image
         except queue.Empty:
-            input(
-                "Cameras frozen. Check connections, then press enter to relaunch..."
-            )
+            input("Cameras frozen. Check connections, then press enter to relaunch...")
             self.cap.close()
             self.init_cameras(self.config.REALSENSE_CAMERAS)
             return self.get_im()
@@ -225,34 +244,34 @@ class FrankaWrenchEnv(gym.Env):
     def save_video_recording(self):
         try:
             if len(self.recording_frames):
-                if not os.path.exists('./videos'):
-                    os.makedirs('./videos')
-                
+                if not os.path.exists("./videos"):
+                    os.makedirs("./videos")
+
                 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-                
+
                 for camera_key in self.recording_frames[0].keys():
                     if self.url == "http://127.0.0.1:5000/":
-                        video_path = f'./videos/left_{camera_key}_{timestamp}.mp4'
+                        video_path = f"./videos/left_{camera_key}_{timestamp}.mp4"
                     else:
-                        video_path = f'./videos/right_{camera_key}_{timestamp}.mp4'
-                    
+                        video_path = f"./videos/right_{camera_key}_{timestamp}.mp4"
+
                     # Get the shape of the first frame for this camera
                     first_frame = self.recording_frames[0][camera_key]
                     height, width = first_frame.shape[:2]
-                    
+
                     video_writer = cv2.VideoWriter(
                         video_path,
                         cv2.VideoWriter_fourcc(*"mp4v"),
                         10,
                         (width, height),
                     )
-                    
+
                     for frame_dict in self.recording_frames:
                         video_writer.write(frame_dict[camera_key])
-                    
+
                     video_writer.release()
                     print(f"Saved video for camera {camera_key} at {video_path}")
-                
+
             self.recording_frames.clear()
         except Exception as e:
             print(f"Failed to save video: {e}")
@@ -287,15 +306,25 @@ class FrankaWrenchEnv(gym.Env):
     def _send_gripper_command(self, pos: float, mode="binary"):
         """Internal function to send gripper command to the robot."""
         if mode == "binary":
-            if (pos >= -1) and (pos <= -0.5) and (self.curr_gripper_pos > 0.95) and (time.time() - self.last_gripper_act > self.gripper_sleep):  # close gripper
+            if (
+                (pos >= -1)
+                and (pos <= -0.5)
+                and (self.curr_gripper_pos > 0.95)
+                and (time.time() - self.last_gripper_act > self.gripper_sleep)
+            ):  # close gripper
                 requests.post(self.url + "close_gripper")
                 self.last_gripper_act = time.time()
                 time.sleep(0.6)
-            elif (pos >= 0.5) and (pos <= 1) and (self.curr_gripper_pos < 0.95) and (time.time() - self.last_gripper_act > self.gripper_sleep):  # open gripper
+            elif (
+                (pos >= 0.5)
+                and (pos <= 1)
+                and (self.curr_gripper_pos < 0.95)
+                and (time.time() - self.last_gripper_act > self.gripper_sleep)
+            ):  # open gripper
                 requests.post(self.url + "open_gripper")
                 self.last_gripper_act = time.time()
                 time.sleep(0.6)
-            else: 
+            else:
                 return
         elif mode == "continuous":
             raise NotImplementedError("Continuous gripper control is optional")

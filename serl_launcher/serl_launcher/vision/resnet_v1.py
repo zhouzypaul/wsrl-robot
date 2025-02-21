@@ -6,9 +6,9 @@ import flax.linen as nn
 import jax
 import jax.numpy as jnp
 import numpy as np
-
-from serl_launcher.vision.film_conditioning_layer import FilmConditioning
 from serl_launcher.vision.data_augmentations import resize
+from serl_launcher.vision.film_conditioning_layer import FilmConditioning
+
 ModuleDef = Any
 
 

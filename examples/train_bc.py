@@ -1,28 +1,27 @@
 #!/usr/bin/env python3
 
 import glob
+import os
+import pickle as pkl
 import time
+
 import jax
 import jax.numpy as jnp
 import numpy as np
 import tqdm
 from absl import app, flags
+from experiments.config import DefaultTrainingConfig
+from experiments.mappings import CONFIG_MAPPING
 from flax.training import checkpoints
-import os
-import pickle as pkl
 from gymnasium.wrappers.record_episode_statistics import RecordEpisodeStatistics
-
 from serl_launcher.agents.continuous.bc import BCAgent
-
+from serl_launcher.data.data_store import MemoryEfficientReplayBufferDataStore
 from serl_launcher.utils.launcher import (
     make_bc_agent,
     make_trainer_config,
     make_wandb_logger,
 )
-from serl_launcher.data.data_store import MemoryEfficientReplayBufferDataStore
 
-from experiments.mappings import CONFIG_MAPPING
-from experiments.config import DefaultTrainingConfig
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string("exp_name", None, "Name of experiment corresponding to folder.")
@@ -53,6 +52,7 @@ def print_yellow(x):
 
 
 ##############################################################################
+
 
 def eval(
     env,
@@ -105,7 +105,7 @@ def train(
         },
         device=sharding.replicate(),
     )
-    
+
     # Pretrain BC policy to get started
     for step in tqdm.tqdm(
         range(FLAGS.train_steps),
@@ -118,7 +118,10 @@ def train(
             wandb_logger.log({"bc": bc_update_info}, step=step)
         if step > FLAGS.train_steps - 100 and step % 10 == 0:
             checkpoints.save_checkpoint(
-                os.path.abspath(FLAGS.bc_checkpoint_path), bc_agent.state, step=step, keep=5
+                os.path.abspath(FLAGS.bc_checkpoint_path),
+                bc_agent.state,
+                step=step,
+                keep=5,
             )
     print_green("bc pretraining done and saved checkpoint")
 
@@ -173,14 +176,14 @@ def main(_):
         )
 
         demo_path = glob.glob(os.path.join(os.getcwd(), "demo_data", "*.pkl"))
-        
+
         assert demo_path is not []
 
         for path in demo_path:
             with open(path, "rb") as f:
                 transitions = pkl.load(f)
                 for transition in transitions:
-                    if np.linalg.norm(transition['actions']) > 0.0:
+                    if np.linalg.norm(transition["actions"]) > 0.0:
                         bc_replay_buffer.insert(transition)
         print(f"bc replay buffer size: {len(bc_replay_buffer)}")
 

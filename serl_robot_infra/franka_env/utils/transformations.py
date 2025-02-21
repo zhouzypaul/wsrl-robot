@@ -1,5 +1,5 @@
-from scipy.spatial.transform import Rotation as R
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 
 
 def construct_adjoint_matrix(tcp_pose):
@@ -35,6 +35,7 @@ def construct_homogeneous_matrix(tcp_pose):
     T[:3, 3] = translation
     T[3, 3] = 1
     return T
+
 
 def construct_adjoint_matrix_from_euler(tcp_pose):
     """

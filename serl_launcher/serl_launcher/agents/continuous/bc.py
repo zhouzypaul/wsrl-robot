@@ -8,7 +8,6 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 from flax.core import FrozenDict
-
 from serl_launcher.common.common import JaxRLTrainState, ModuleDict, nonpytree_field
 from serl_launcher.common.encoding import EncodingWrapper
 from serl_launcher.common.typing import Batch, PRNGKey
@@ -39,7 +38,10 @@ class BCAgent(flax.struct.PyTreeNode):
             batch = _unpack(batch)
 
         rng, aug_rng = jax.random.split(self.state.rng)
-        if "augmentation_function" in self.config.keys() and self.config["augmentation_function"] is not None:
+        if (
+            "augmentation_function" in self.config.keys()
+            and self.config["augmentation_function"] is not None
+        ):
             batch = self.config["augmentation_function"](batch, aug_rng)
 
         def loss_fn(params, rng):
@@ -54,7 +56,7 @@ class BCAgent(flax.struct.PyTreeNode):
             )
             pi_actions = dist.mode()
             if self.config["tanh_squash_distribution"]:
-                batch_actions = jnp.clip(batch["actions"], -1+1e-6, 1-1e-6)
+                batch_actions = jnp.clip(batch["actions"], -1 + 1e-6, 1 - 1e-6)
             else:
                 batch_actions = batch["actions"]
             log_probs = dist.log_prob(batch_actions)
@@ -72,15 +74,21 @@ class BCAgent(flax.struct.PyTreeNode):
         )
 
         return self.replace(state=new_state), info
-    
-    def forward_policy(self, observations: np.ndarray, *, temperature: float = 1.0, non_squash_distribution: bool = False):
+
+    def forward_policy(
+        self,
+        observations: np.ndarray,
+        *,
+        temperature: float = 1.0,
+        non_squash_distribution: bool = False,
+    ):
         dist = self.state.apply_fn(
             {"params": self.state.params},
             observations,
             train=False,
             temperature=temperature,
             name="actor",
-            non_squash_distribution=non_squash_distribution
+            non_squash_distribution=non_squash_distribution,
         )
         return dist
 
@@ -115,7 +123,7 @@ class BCAgent(flax.struct.PyTreeNode):
         )
         pi_actions = dist.mode()
         if self.config["tanh_squash_distribution"]:
-            batch_actions = jnp.clip(batch["actions"], -1+1e-6, 1-1e-6)
+            batch_actions = jnp.clip(batch["actions"], -1 + 1e-6, 1 - 1e-6)
         else:
             batch_actions = batch["actions"]
         log_probs = dist.log_prob(batch_actions)
@@ -224,6 +232,7 @@ class BCAgent(flax.struct.PyTreeNode):
 
         if encoder_type == "resnet-pretrained":  # load pretrained weights for ResNet-10
             from serl_launcher.utils.train_utils import load_resnet10_params
+
             agent = load_resnet10_params(agent, image_keys)
 
         return agent

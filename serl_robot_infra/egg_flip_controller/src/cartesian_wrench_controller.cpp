@@ -1,5 +1,5 @@
 /*
-Reference: 
+Reference:
   https://github.com/frankaemika/franka_ros/blob/develop/franka_example_controllers/src/cartesian_wrench_example_controller.cpp
 */
 
@@ -339,7 +339,7 @@ void CartesianWrenchController::update(const ros::Time& time,
 
   // Saturate torque rate to avoid discontinuities
   tau_d << saturateTorqueRate(tau_d, tau_J_d);
-  
+
   for (size_t i = 0; i < 7; ++i) {
     joint_handles_[i].setCommand(tau_d(i));
   }

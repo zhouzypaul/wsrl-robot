@@ -1,14 +1,13 @@
 from threading import Lock
-from typing import Union, Iterable
+from typing import Iterable, Union
 
 import gymnasium as gym
 import jax
-from serl_launcher.data.replay_buffer import ReplayBuffer
+from agentlace.data.data_store import DataStoreBase
 from serl_launcher.data.memory_efficient_replay_buffer import (
     MemoryEfficientReplayBuffer,
 )
-
-from agentlace.data.data_store import DataStoreBase
+from serl_launcher.data.replay_buffer import ReplayBuffer
 
 
 class ReplayBufferDataStore(ReplayBuffer, DataStoreBase):
@@ -51,7 +50,12 @@ class MemoryEfficientReplayBufferDataStore(MemoryEfficientReplayBuffer, DataStor
         **kwargs,
     ):
         MemoryEfficientReplayBuffer.__init__(
-            self, observation_space, action_space, capacity, pixel_keys=image_keys, **kwargs
+            self,
+            observation_space,
+            action_space,
+            capacity,
+            pixel_keys=image_keys,
+            **kwargs,
         )
         DataStoreBase.__init__(self, capacity)
         self._lock = Lock()
@@ -86,8 +90,9 @@ def populate_data_store(
     :return data_store
     """
     import pickle as pkl
-    import numpy as np
     from copy import deepcopy
+
+    import numpy as np
 
     for demo_path in demos_path:
         with open(demo_path, "rb") as f:
@@ -108,8 +113,9 @@ def populate_data_store_with_z_axis_only(
     :return data_store
     """
     import pickle as pkl
-    import numpy as np
     from copy import deepcopy
+
+    import numpy as np
 
     for demo_path in demos_path:
         with open(demo_path, "rb") as f:

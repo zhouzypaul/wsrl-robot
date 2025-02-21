@@ -1,9 +1,9 @@
 import subprocess
-import rospy
-from robotiq_2f_gripper_control.msg import _Robotiq2FGripper_robot_output as outputMsg
-from robotiq_2f_gripper_control.msg import _Robotiq2FGripper_robot_input as inputMsg
 
+import rospy
 from robot_servers.gripper_server import GripperServer
+from robotiq_2f_gripper_control.msg import _Robotiq2FGripper_robot_input as inputMsg
+from robotiq_2f_gripper_control.msg import _Robotiq2FGripper_robot_output as outputMsg
 
 
 class RobotiqGripperServer(GripperServer):
@@ -49,11 +49,15 @@ class RobotiqGripperServer(GripperServer):
         self.gripperpub.publish(self.gripper_command)
 
     def move(self, position):
-        self.gripper_command = self._generate_gripper_command(position, self.gripper_command)
+        self.gripper_command = self._generate_gripper_command(
+            position, self.gripper_command
+        )
         self.gripperpub.publish(self.gripper_command)
 
     def close_slow(self):
-        self.gripper_command = self._generate_gripper_command("cs", self.gripper_command)
+        self.gripper_command = self._generate_gripper_command(
+            "cs", self.gripper_command
+        )
         self.gripperpub.publish(self.gripper_command)
 
     def _update_gripper(self, msg):
@@ -77,7 +81,7 @@ class RobotiqGripperServer(GripperServer):
         elif char == "c":
             command.rPR = 255
             command.rSP = 255
-        
+
         elif char == "cs":
             command.rPR = 255
             command.rSP = 50

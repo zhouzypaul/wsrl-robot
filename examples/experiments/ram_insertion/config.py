@@ -1,22 +1,22 @@
 import os
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-
-from franka_env.envs.wrappers import (
-    Quat2EulerWrapper,
-    SpacemouseIntervention,
-    MultiCameraBinaryRewardClassifierWrapper,
-    GripperCloseEnv
-)
-from franka_env.envs.relative_env import RelativeFrame
-from franka_env.envs.franka_env import DefaultEnvConfig
-from serl_launcher.wrappers.serl_obs_wrappers import SERLObsWrapper
-from serl_launcher.wrappers.chunking import ChunkingWrapper
-from serl_launcher.networks.reward_classifier import load_classifier_func
-
 from experiments.config import DefaultTrainingConfig
 from experiments.ram_insertion.wrapper import RAMEnv
+from franka_env.envs.franka_env import DefaultEnvConfig
+from franka_env.envs.relative_env import RelativeFrame
+from franka_env.envs.wrappers import (
+    GripperCloseEnv,
+    MultiCameraBinaryRewardClassifierWrapper,
+    Quat2EulerWrapper,
+    SpacemouseIntervention,
+)
+from serl_launcher.networks.reward_classifier import load_classifier_func
+from serl_launcher.wrappers.chunking import ChunkingWrapper
+from serl_launcher.wrappers.serl_obs_wrappers import SERLObsWrapper
+
 
 class EnvConfig(DefaultEnvConfig):
     SERVER_URL = "http://127.0.0.2:5000/"
@@ -36,8 +36,12 @@ class EnvConfig(DefaultEnvConfig):
         "wrist_1": lambda img: img[150:450, 350:1100],
         "wrist_2": lambda img: img[100:500, 400:900],
     }
-    TARGET_POSE = np.array([0.5881241235410154,-0.03578590131997776,0.27843494179085326, np.pi, 0, 0])
-    GRASP_POSE = np.array([0.5857508505445138,-0.22036261105675414,0.2731021902359492, np.pi, 0, 0])
+    TARGET_POSE = np.array(
+        [0.5881241235410154, -0.03578590131997776, 0.27843494179085326, np.pi, 0, 0]
+    )
+    GRASP_POSE = np.array(
+        [0.5857508505445138, -0.22036261105675414, 0.2731021902359492, np.pi, 0, 0]
+    )
     RESET_POSE = TARGET_POSE + np.array([0, 0, 0.05, 0, 0.05, 0])
     ABS_POSE_LIMIT_LOW = TARGET_POSE - np.array([0.03, 0.02, 0.01, 0.01, 0.1, 0.4])
     ABS_POSE_LIMIT_HIGH = TARGET_POSE + np.array([0.03, 0.02, 0.05, 0.01, 0.1, 0.4])
@@ -123,7 +127,9 @@ class TrainConfig(DefaultTrainingConfig):
             def reward_func(obs):
                 sigmoid = lambda x: 1 / (1 + jnp.exp(-x))
                 # added check for z position to further robustify classifier, but should work without as well
-                return int(sigmoid(classifier(obs)) > 0.85 and obs['state'][0, 6] > 0.04)
+                return int(
+                    sigmoid(classifier(obs)) > 0.85 and obs["state"][0, 6] > 0.04
+                )
 
             env = MultiCameraBinaryRewardClassifierWrapper(env, reward_func)
         return env

@@ -1,7 +1,7 @@
 from .continuous.bc import BCAgent
 from .continuous.sac import SACAgent
-from .continuous.sac_hybrid_single import SACAgentHybridSingleArm
 from .continuous.sac_hybrid_dual import SACAgentHybridDualArm
+from .continuous.sac_hybrid_single import SACAgentHybridSingleArm
 
 agents = {
     "bc": BCAgent,

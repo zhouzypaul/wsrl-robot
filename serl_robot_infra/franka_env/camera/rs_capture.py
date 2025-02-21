@@ -7,7 +7,9 @@ class RSCapture:
         devices = rs.context().devices
         return [d.get_info(rs.camera_info.serial_number) for d in devices]
 
-    def __init__(self, name, serial_number, dim=(640, 480), fps=15, depth=False, exposure=40000):
+    def __init__(
+        self, name, serial_number, dim=(640, 480), fps=15, depth=False, exposure=40000
+    ):
         self.name = name
         assert serial_number in self.get_device_serial_numbers()
         self.serial_number = serial_number

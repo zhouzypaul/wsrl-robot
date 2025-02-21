@@ -1,6 +1,6 @@
-from scipy.spatial.transform import Rotation as R
 import numpy as np
 from pyquaternion import Quaternion
+from scipy.spatial.transform import Rotation as R
 
 
 def quat_2_euler(quat):
