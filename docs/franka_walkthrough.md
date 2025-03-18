@@ -107,7 +107,7 @@ Next, we need to edit the training configuration in [experiments/usb_pickup_inse
 
 5. Finally, you will need to collect the `TARGET_POSE` which for this task, refers to the arm pose when grasping the USB while it is fully inserted in the port. Also, ensure that the bounding box is set for safe exploration (see `ABS_POSE_LIMIT_HIGH` and `ABS_POSE_LIMIT_LOW`). Note that `RESET_POSE` (pose the arm where move before dropping the USB during episode reset) is already defined and that `RANDOM_RESET` is enabled. To collect the current pose of the Franka arm, you can run:
     ```bash
-    curl -X POST http://<FRANKA_SERVER_URL>:5000/getpos_euler
+    curl -X POST http://127.0.0.1:5000/getpos_euler
     ```
 
 #### Training Reward Classifier

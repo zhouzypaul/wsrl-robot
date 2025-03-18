@@ -33,19 +33,23 @@ class EnvConfig(DefaultEnvConfig):
         },
     }
     IMAGE_CROP = {
-        "wrist_1": lambda img: img[
-            150:450, 350:1100
-        ],  # TODO: might need to change this
-        "wrist_2": lambda img: img[100:500, 400:900],
+        # "wrist_1": lambda img: img[
+        #     150:450, 350:1100
+        # ],
+        # "wrist_2": lambda img: img[
+        #     100:500, 400:900
+        # ],  # zhouzypaul: I removed image crop and use full obs
     }
+    DISPLAY_IMAGE = True
+
     TARGET_POSE = np.array(
         [
-            0.5525251855748088,
-            -0.16542291925229702,
-            0.11440050189486062,
-            3.10269074648499,
-            -0.037261335563726794,
-            1.5832450870275565,
+            0.6584190039030988,
+            -0.16325907715902085,
+            0.09885586395962031,
+            -3.11690494856796,
+            0.016946964176552504,
+            1.5007374288437276,
         ]
     )  # peg fully inserted
     # GRASP_POSE = np.array([0.5857508505445138,-0.22036261105675414,0.2731021902359492, np.pi, 0, 0])  # when grasping peg sitting on the holder
@@ -55,7 +59,7 @@ class EnvConfig(DefaultEnvConfig):
 
     # randomness in reset
     RANDOM_RESET = True
-    RANDOM_XY_RANGE = 0.05
+    RANDOM_XY_RANGE = 0.1
     RANDOM_RZ_RANGE = np.pi / 6
 
     # bouding box for the pos
@@ -80,8 +84,7 @@ class EnvConfig(DefaultEnvConfig):
         ]
     )
 
-    ACTION_SCALE = (0.05, 0.1, 1)  # (_, _, gripper)
-    DISPLAY_IMAGE = False
+    ACTION_SCALE = (0.03, 0.1, 1)  # (xyz, r_xyz, gripper)
     MAX_EPISODE_LENGTH = 500  # TODO: 100 --> 300
     COMPLIANCE_PARAM = {
         "translational_stiffness": 2000,
@@ -89,12 +92,12 @@ class EnvConfig(DefaultEnvConfig):
         "rotational_stiffness": 150,
         "rotational_damping": 7,
         "translational_Ki": 0,
-        "translational_clip_x": 0.003,
+        "translational_clip_x": 0.008,
         "translational_clip_y": 0.003,
-        "translational_clip_z": 0.01,
-        "translational_clip_neg_x": 0.003,
+        "translational_clip_z": 0.006,
+        "translational_clip_neg_x": 0.008,
         "translational_clip_neg_y": 0.003,
-        "translational_clip_neg_z": 0.01,
+        "translational_clip_neg_z": 0.006,
         "rotational_clip_x": 0.02,
         "rotational_clip_y": 0.02,
         "rotational_clip_z": 0.02,
