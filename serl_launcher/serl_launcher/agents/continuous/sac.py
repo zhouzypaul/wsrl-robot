@@ -520,9 +520,11 @@ class SACAgent(flax.struct.PyTreeNode):
         use_proprio: bool = False,
         critic_network_kwargs: dict = {
             "hidden_dims": [256, 256],
+            "activate_final": True,
         },
         policy_network_kwargs: dict = {
             "hidden_dims": [256, 256],
+            "activate_final": True,
         },
         policy_kwargs: dict = {
             "tanh_squash_distribution": True,
@@ -539,8 +541,6 @@ class SACAgent(flax.struct.PyTreeNode):
         Create a new pixel-based agent, with no encoders.
         """
 
-        policy_network_kwargs["activate_final"] = True
-        critic_network_kwargs["activate_final"] = True
 
         if encoder_type == "resnet":
             from serl_launcher.vision.resnet_v1 import resnetv1_configs
