@@ -4,7 +4,7 @@ import gymnasium as gym
 import jax
 import jax.numpy as jnp
 import numpy as np
-from experiments.config import DefaultTrainingConfig
+from experiments.configs.train_config import DefaultTrainingConfig
 from experiments.object_handover.wrapper import GripperPenaltyWrapper, HandOffEnv
 from franka_env.envs.dual_franka_env import DualFrankaEnv
 from franka_env.envs.franka_env import DefaultEnvConfig
