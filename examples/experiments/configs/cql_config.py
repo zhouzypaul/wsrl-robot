@@ -26,7 +26,7 @@ def get_config(updates=None):
     config.use_cql_loss = True  # set this to False to default to SAC
 
     # Cal-QL
-    config.use_calql = True
+    config.use_calql = False
     config.calql_bound_random_actions = False
 
     if updates is not None:

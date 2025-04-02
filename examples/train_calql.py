@@ -129,7 +129,7 @@ def train(
             and step % config.checkpoint_period == 0
         ):
             checkpoints.save_checkpoint(
-                os.path.abspath(FLAGS.checkpoint_path),
+                os.path.abspath(FLAGS.calql_checkpoint_path),
                 calql_agent.state,
                 step=step,
                 keep=100,
@@ -189,9 +189,10 @@ def main(_):
         )
 
         assert FLAGS.demo_path is not None
-        _, extension = os.path.splitext(FLAGS.demo_path)
-        assert extension == ".pkl"
+
         for path in FLAGS.demo_path:
+            _, extension = os.path.splitext(path)
+            assert extension == ".pkl"
             with open(path, "rb") as f:
                 transitions = pkl.load(f)
                 for transition in transitions:
