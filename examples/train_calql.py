@@ -4,19 +4,21 @@ import glob
 import os
 import pickle as pkl
 import time
+from typing import Union
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 import tqdm
 from absl import app, flags
-from experiments.configs.train_config import DefaultTrainingConfig
 from experiments.configs.cql_config import get_config as getCQLConfig
+from experiments.configs.train_config import DefaultTrainingConfig
 from experiments.mappings import CONFIG_MAPPING
 from flax.training import checkpoints
 from gymnasium.wrappers.record_episode_statistics import RecordEpisodeStatistics
 from ml_collections import ConfigDict
 from serl_launcher.agents.continuous.calql import CalQLAgent
+from serl_launcher.agents.continuous.cql import CQLAgent
 from serl_launcher.data.data_store import MemoryEfficientReplayBufferDataStore
 from serl_launcher.utils.launcher import (
     make_calql_pixel_agent,
@@ -31,7 +33,7 @@ flags.DEFINE_integer("seed", 42, "Random seed.")
 flags.DEFINE_string("ip", "localhost", "IP address of the learner.")
 flags.DEFINE_string("calql_checkpoint_path", None, "Path to save checkpoints.")
 flags.DEFINE_integer("eval_n_trajs", 0, "Number of trajectories to evaluate.")
-flags.DEFINE_integer("train_steps", 20_000, "Number of pretraining steps.")
+flags.DEFINE_integer("train_steps", 40_000, "Number of pretraining steps.")
 flags.DEFINE_bool("save_video", False, "Save video of the evaluation.")
 flags.DEFINE_multi_string("demo_path", None, "Path to the demo data.")
 
@@ -120,14 +122,19 @@ def train(
         calql_agent, calql_update_info = calql_agent.update(batch)
         if step % config.log_period == 0 and wandb_logger:
             wandb_logger.log({"calql": calql_update_info}, step=step)
-        if step > FLAGS.train_steps - 100 and step % 10 == 0:
+
+        if (
+            step > 0
+            and config.checkpoint_period
+            and step % config.checkpoint_period == 0
+        ):
             checkpoints.save_checkpoint(
-                os.path.abspath(FLAGS.calql_checkpoint_path
-            ),
+                os.path.abspath(FLAGS.checkpoint_path),
                 calql_agent.state,
                 step=step,
-                keep=5,
+                keep=100,
             )
+
     print_green("calql pretraining done and saved checkpoint")
 
 
@@ -147,14 +154,15 @@ def main(_):
     )
     env = RecordEpisodeStatistics(env)
 
-    calql_agent: CalQLAgent = make_calql_pixel_agent(
+    calql_agent: Union[CalQLAgent, CQLAgent] = make_calql_pixel_agent(
         seed=FLAGS.seed,
         sample_obs=env.observation_space.sample(),
         sample_action=env.action_space.sample(),
         image_keys=config.image_keys,
         encoder_type=config.encoder_type,
-        **(getCQLConfig().to_dict())
+        is_calql=False,
     )
+
     # replicate agent across devices
     # need the jnp.array to avoid a bug where device_put doesn't recognize primitives
     calql_agent: CalQLAgent = jax.device_put(
@@ -163,8 +171,7 @@ def main(_):
 
     if not eval_mode:
         assert not os.path.isdir(
-            os.path.join(FLAGS.calql_checkpoint_path
-        , f"checkpoint_{FLAGS.train_steps}")
+            os.path.join(FLAGS.calql_checkpoint_path, f"checkpoint_{FLAGS.train_steps}")
         )
 
         demo_buffer = MemoryEfficientReplayBufferDataStore(
@@ -182,14 +189,12 @@ def main(_):
         )
 
         assert FLAGS.demo_path is not None
+        _, extension = os.path.splitext(FLAGS.demo_path)
+        assert extension == ".pkl"
         for path in FLAGS.demo_path:
             with open(path, "rb") as f:
                 transitions = pkl.load(f)
                 for transition in transitions:
-                    if "infos" in transition and "grasp_penalty" in transition["infos"]:
-                        transition["grasp_penalty"] = transition["infos"][
-                            "grasp_penalty"
-                        ]
                     demo_buffer.insert(transition)
         print_green(f"demo buffer size: {len(demo_buffer)}")
 
@@ -207,8 +212,7 @@ def main(_):
         sampling_rng = jax.device_put(rng, sharding.replicate())
 
         bc_ckpt = checkpoints.restore_checkpoint(
-            FLAGS.calql_checkpoint_path
-        ,
+            FLAGS.calql_checkpoint_path,
             calql_agent.state,
         )
         calql_agent = calql_agent.replace(state=bc_ckpt)

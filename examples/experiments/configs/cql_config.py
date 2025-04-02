@@ -1,7 +1,6 @@
-from ml_collections import ConfigDict
 import numpy as np
-
 from experiments.configs import sac_config
+from ml_collections import ConfigDict
 
 
 def get_config(updates=None):
@@ -27,7 +26,7 @@ def get_config(updates=None):
     config.use_cql_loss = True  # set this to False to default to SAC
 
     # Cal-QL
-    config.use_calql = False
+    config.use_calql = True
     config.calql_bound_random_actions = False
 
     if updates is not None:

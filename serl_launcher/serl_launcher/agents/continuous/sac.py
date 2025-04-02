@@ -53,10 +53,10 @@ class SACAgent(flax.struct.PyTreeNode):
                     a,
                     name="critic",
                     rngs={"dropout": rng} if train else {},
-                    train=train
+                    train=train,
                 ),
                 in_axes=1,
-                out_axes=-1
+                out_axes=-1,
             )(
                 actions
             )  # (ensemble_size, batch_size, n_actions)
@@ -141,11 +141,11 @@ class SACAgent(flax.struct.PyTreeNode):
             new_actions = jnp.transpose(
                 new_actions, (1, 0, 2)
             )  # (batch, repeat, action_dim)
-            log_pi = jnp.transpose(log_pi, (1, 0))  #(batch, repeat)
+            log_pi = jnp.transpose(log_pi, (1, 0))  # (batch, repeat)
         else:
             new_actions, log_pi = action_dist.sample_and_log_prob(seed=sample_rng)
         return new_actions, log_pi
-    
+
     def forward_temperature(
         self, *, grad_params: Optional[Params] = None
     ) -> distrax.Distribution:
@@ -177,7 +177,7 @@ class SACAgent(flax.struct.PyTreeNode):
         sample_n_actions = (
             self.config["n_actions"] if self.config["max_target_backup"] else None
         )
-        
+
         next_actions, next_actions_log_probs = self.forward_policy_and_sample(
             batch["next_observations"],
             rng,
@@ -210,7 +210,7 @@ class SACAgent(flax.struct.PyTreeNode):
             ).squeeze(-1)
 
         return target_next_qs
-    
+
     def critic_loss_fn(self, batch, params: Params, rng: PRNGKey):
         """classes that inherit this class can change this function"""
         batch_size = batch["rewards"].shape[0]
@@ -244,7 +244,7 @@ class SACAgent(flax.struct.PyTreeNode):
         # (batch_size,) for sac, (batch_size, cql_n_actions) for cql
 
         target_next_min_q = self._process_target_next_qs(
-            target_next_qs,
+            target_next_min_q,
             next_actions_log_probs,
         )
 
@@ -255,10 +255,7 @@ class SACAgent(flax.struct.PyTreeNode):
         chex.assert_shape(target_q, (batch_size,))
 
         predicted_qs = self.forward_critic(
-            batch["observations"], 
-            batch["actions"], 
-            rng=rng, 
-            grad_params=params
+            batch["observations"], batch["actions"], rng=rng, grad_params=params
         )
 
         chex.assert_shape(
@@ -540,7 +537,6 @@ class SACAgent(flax.struct.PyTreeNode):
         """
         Create a new pixel-based agent, with no encoders.
         """
-
 
         if encoder_type == "resnet":
             from serl_launcher.vision.resnet_v1 import resnetv1_configs

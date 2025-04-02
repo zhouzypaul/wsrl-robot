@@ -3,12 +3,15 @@
 import jax
 import jax.numpy as jnp
 from agentlace.trainer import TrainerConfig
+from experiments.configs.cql_config import get_config as getCQLConfig
 from jax import nn
+from ml_collections import ConfigDict
 from serl_launcher.agents.continuous.bc import BCAgent
+from serl_launcher.agents.continuous.calql import CalQLAgent
+from serl_launcher.agents.continuous.cql import CQLAgent
 from serl_launcher.agents.continuous.sac import SACAgent
 from serl_launcher.agents.continuous.sac_hybrid_dual import SACAgentHybridDualArm
 from serl_launcher.agents.continuous.sac_hybrid_single import SACAgentHybridSingleArm
-from serl_launcher.agents.continuous.calql import CalQLAgent
 from serl_launcher.common.typing import Batch, PRNGKey
 from serl_launcher.common.wandb import WandBLogger
 from serl_launcher.vision.data_augmentations import batched_random_crop
@@ -190,6 +193,7 @@ def make_sac_pixel_agent_hybrid_dual_arm(
     )
     return agent
 
+
 def make_calql_pixel_agent(
     seed,
     sample_obs,
@@ -197,44 +201,46 @@ def make_calql_pixel_agent(
     image_keys=("image",),
     encoder_type="resnet-pretrained",
     reward_bias=0.0,
-    target_entropy=None,
+    target_entropy=0.0,
     discount=0.97,
-    **kwargs,
+    is_calql=True,
 ):
-    agent = CalQLAgent.create(
+    agentType = CalQLAgent if is_calql else CQLAgent
+    agent = agentType.create(
         jax.random.PRNGKey(seed),
         sample_obs,
         sample_action,
         encoder_type=encoder_type,
         use_proprio=True,
         image_keys=image_keys,
-        policy_kwargs={
-            "tanh_squash_distribution": True,
-            "std_parameterization": "exp",
-            "std_min": 1e-5,
-            "std_max": 5,
-        },
-        critic_network_kwargs={
-            "activations": nn.tanh,
-            "use_layer_norm": True,
-            "hidden_dims": [256, 256],
-        },
-        policy_network_kwargs={
-            "activations": nn.tanh,
-            "use_layer_norm": True,
-            "hidden_dims": [256, 256],
-        },
-        temperature_init=1e-2,
-        discount=discount,
-        backup_entropy=False,
-        critic_ensemble_size=2,
-        critic_subsample_size=None,
-        reward_bias=reward_bias,
-        target_entropy=target_entropy,
-        augmentation_function=make_batch_augmentation_func(image_keys),
-        **kwargs
+        **getCQLConfig(
+            updates={
+                "policy_kwargs": {
+                    "tanh_squash_distribution": True,
+                    "std_parameterization": "exp",
+                    "std_min": 1e-5,
+                    "std_max": 5,
+                },
+                "critic_network_kwargs": {
+                    "activations": nn.tanh,
+                    "use_layer_norm": True,
+                    "hidden_dims": [256, 256],
+                },
+                "policy_network_kwargs": {
+                    "activations": nn.tanh,
+                    "use_layer_norm": True,
+                    "hidden_dims": [256, 256],
+                },
+                "temperature_init": 1e-2,
+                "discount": discount,
+                "reward_bias": reward_bias,
+                "target_entropy": target_entropy,
+                "augmentation_function": make_batch_augmentation_func(image_keys),
+            },
+        ).to_dict(),
     )
     return agent
+
 
 def linear_schedule(step):
     init_value = 10.0

@@ -1,15 +1,16 @@
-from functools import partial
-from typing import Optional, Tuple, FrozenSet, Iterable
-
 import copy
+from functools import partial
+from typing import FrozenSet, Iterable, Optional, Tuple
+
 import chex
 import distrax
 import flax
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
-
+from ml_collections import ConfigDict
 from overrides import overrides
+from serl_launcher.agents.continuous.sac import SACAgent
 from serl_launcher.common.common import JaxRLTrainState, ModuleDict, nonpytree_field
 from serl_launcher.common.encoding import EncodingWrapper
 from serl_launcher.common.optimizers import make_optimizer
@@ -18,9 +19,7 @@ from serl_launcher.networks.actor_critic_nets import Critic, Policy, ensemblize
 from serl_launcher.networks.lagrange import GeqLagrangeMultiplier, LeqLagrangeMultiplier
 from serl_launcher.networks.mlp import MLP
 from serl_launcher.utils.train_utils import _unpack
-from ml_collections import ConfigDict
 
-from serl_launcher.agents.continuous.sac import SACAgent
 
 class CQLAgent(SACAgent):
     def forward_cql_alpha_lagrange(self, *, grad_params: Optional[Params] = None):
@@ -410,7 +409,7 @@ class CQLAgent(SACAgent):
         },
         policy_kwargs: dict = {
             "tanh_squash_distribution": True,
-            "std_parameterization": "exp",   #TODO: checl
+            "std_parameterization": "exp",  # TODO: checl
         },
         encoder_type: str = "resnet-pretrained",
         image_keys: Iterable[str] = ("image",),
@@ -419,7 +418,8 @@ class CQLAgent(SACAgent):
     ):
         # update algorithm config
         config = ConfigDict(kwargs)
-        
+        config["image_keys"] = image_keys
+
         if encoder_type == "resnet":
             from serl_launcher.vision.resnet_v1 import resnetv1_configs
 
@@ -466,9 +466,6 @@ class CQLAgent(SACAgent):
             "critic": encoder_def,
             "actor": encoder_def,
         }
-
-        # update algorithm config
-        config = ConfigDict(kwargs)
 
         # Define networks
         policy_def = Policy(
