@@ -3,7 +3,7 @@ import os
 import jax
 import jax.numpy as jnp
 import numpy as np
-from experiments.config import DefaultTrainingConfig
+from experiments.configs.train_config import DefaultTrainingConfig
 from experiments.ram_insertion.wrapper import RAMEnv
 from franka_env.envs.franka_env import DefaultEnvConfig
 from franka_env.envs.relative_env import RelativeFrame

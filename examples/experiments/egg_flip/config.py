@@ -1,6 +1,6 @@
 import gymnasium as gym
 import jax
-from experiments.config import DefaultTrainingConfig
+from experiments.configs.train_config import DefaultTrainingConfig
 from experiments.egg_flip.wrapper import (
     EggClassifierWrapper,
     EggFlipActionWrapper,

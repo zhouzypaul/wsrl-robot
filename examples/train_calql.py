@@ -4,20 +4,24 @@ import glob
 import os
 import pickle as pkl
 import time
+from typing import Union
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 import tqdm
 from absl import app, flags
+from experiments.configs.cql_config import get_config as getCQLConfig
 from experiments.configs.train_config import DefaultTrainingConfig
 from experiments.mappings import CONFIG_MAPPING
 from flax.training import checkpoints
 from gymnasium.wrappers.record_episode_statistics import RecordEpisodeStatistics
-from serl_launcher.agents.continuous.bc import BCAgent
+from ml_collections import ConfigDict
+from serl_launcher.agents.continuous.calql import CalQLAgent
+from serl_launcher.agents.continuous.cql import CQLAgent
 from serl_launcher.data.data_store import MemoryEfficientReplayBufferDataStore
 from serl_launcher.utils.launcher import (
-    make_bc_agent,
+    make_calql_pixel_agent,
     make_trainer_config,
     make_wandb_logger,
 )
@@ -27,10 +31,11 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string("exp_name", None, "Name of experiment corresponding to folder.")
 flags.DEFINE_integer("seed", 42, "Random seed.")
 flags.DEFINE_string("ip", "localhost", "IP address of the learner.")
-flags.DEFINE_string("bc_checkpoint_path", None, "Path to save checkpoints.")
+flags.DEFINE_string("calql_checkpoint_path", None, "Path to save checkpoints.")
 flags.DEFINE_integer("eval_n_trajs", 0, "Number of trajectories to evaluate.")
-flags.DEFINE_integer("train_steps", 20_000, "Number of pretraining steps.")
+flags.DEFINE_integer("train_steps", 40_000, "Number of pretraining steps.")
 flags.DEFINE_bool("save_video", False, "Save video of the evaluation.")
+flags.DEFINE_multi_string("demo_path", None, "Path to the demo data.")
 
 
 flags.DEFINE_boolean(
@@ -56,12 +61,13 @@ def print_yellow(x):
 
 def eval(
     env,
-    bc_agent: BCAgent,
+    calql_agent: CalQLAgent,
     sampling_rng,
 ):
     """
     This is the actor loop, which runs when "--actor" is set to True.
     """
+    # TODO: ignore for now
     success_counter = 0
     time_list = []
     for episode in range(FLAGS.eval_n_trajs):
@@ -71,7 +77,7 @@ def eval(
         while not done:
             rng, key = jax.random.split(sampling_rng)
 
-            actions = bc_agent.sample_actions(observations=obs, seed=key)
+            actions = calql_agent.sample_actions(observations=obs, seed=key)
             actions = np.asarray(jax.device_get(actions))
             next_obs, reward, done, truncated, info = env.step(actions)
             obs = next_obs
@@ -92,13 +98,13 @@ def eval(
 
 
 def train(
-    bc_agent: BCAgent,
-    bc_replay_buffer,
+    calql_agent: CalQLAgent,
+    demo_buffer,
     config: DefaultTrainingConfig,
     wandb_logger=None,
 ):
 
-    bc_replay_iterator = bc_replay_buffer.get_iterator(
+    calql_replay_iterator = demo_buffer.get_iterator(
         sample_args={
             "batch_size": config.batch_size,
             "pack_obs_and_next_obs": False,
@@ -106,24 +112,30 @@ def train(
         device=sharding.replicate(),
     )
 
-    # Pretrain BC policy to get started
+    # Pretrain CalQL policy to get started
     for step in tqdm.tqdm(
         range(FLAGS.train_steps),
         dynamic_ncols=True,
-        desc="bc_pretraining",
+        desc="calql_pretraining",
     ):
-        batch = next(bc_replay_iterator)
-        bc_agent, bc_update_info = bc_agent.update(batch)
+        batch = next(calql_replay_iterator)
+        calql_agent, calql_update_info = calql_agent.update(batch)
         if step % config.log_period == 0 and wandb_logger:
-            wandb_logger.log({"bc": bc_update_info}, step=step)
-        if step > FLAGS.train_steps - 100 and step % 10 == 0:
+            wandb_logger.log({"calql": calql_update_info}, step=step)
+
+        if (
+            step > 0
+            and config.checkpoint_period
+            and step % config.checkpoint_period == 0
+        ):
             checkpoints.save_checkpoint(
-                os.path.abspath(FLAGS.bc_checkpoint_path),
-                bc_agent.state,
+                os.path.abspath(FLAGS.checkpoint_path),
+                calql_agent.state,
                 step=step,
-                keep=5,
+                keep=100,
             )
-    print_green("bc pretraining done and saved checkpoint")
+
+    print_green("calql pretraining done and saved checkpoint")
 
 
 ##############################################################################
@@ -142,26 +154,27 @@ def main(_):
     )
     env = RecordEpisodeStatistics(env)
 
-    bc_agent: BCAgent = make_bc_agent(
+    calql_agent: Union[CalQLAgent, CQLAgent] = make_calql_pixel_agent(
         seed=FLAGS.seed,
         sample_obs=env.observation_space.sample(),
         sample_action=env.action_space.sample(),
         image_keys=config.image_keys,
         encoder_type=config.encoder_type,
+        is_calql=False,
     )
 
     # replicate agent across devices
     # need the jnp.array to avoid a bug where device_put doesn't recognize primitives
-    bc_agent: BCAgent = jax.device_put(
-        jax.tree_map(jnp.array, bc_agent), sharding.replicate()
+    calql_agent: CalQLAgent = jax.device_put(
+        jax.tree_map(jnp.array, calql_agent), sharding.replicate()
     )
 
     if not eval_mode:
         assert not os.path.isdir(
-            os.path.join(FLAGS.bc_checkpoint_path, f"checkpoint_{FLAGS.train_steps}")
+            os.path.join(FLAGS.calql_checkpoint_path, f"checkpoint_{FLAGS.train_steps}")
         )
 
-        bc_replay_buffer = MemoryEfficientReplayBufferDataStore(
+        demo_buffer = MemoryEfficientReplayBufferDataStore(
             env.observation_space,
             env.action_space,
             capacity=config.replay_buffer_capacity,
@@ -175,23 +188,21 @@ def main(_):
             debug=FLAGS.debug,
         )
 
-        demo_path = glob.glob(os.path.join(os.getcwd(), "demo_data", "*.pkl"))
-
-        assert demo_path is not []
-
-        for path in demo_path:
+        assert FLAGS.demo_path is not None
+        _, extension = os.path.splitext(FLAGS.demo_path)
+        assert extension == ".pkl"
+        for path in FLAGS.demo_path:
             with open(path, "rb") as f:
                 transitions = pkl.load(f)
                 for transition in transitions:
-                    if np.linalg.norm(transition["actions"]) > 0.0:
-                        bc_replay_buffer.insert(transition)
-        print(f"bc replay buffer size: {len(bc_replay_buffer)}")
+                    demo_buffer.insert(transition)
+        print_green(f"demo buffer size: {len(demo_buffer)}")
 
         # learner loop
         print_green("starting learner loop")
         train(
-            bc_agent=bc_agent,
-            bc_replay_buffer=bc_replay_buffer,
+            calql_agent=calql_agent,
+            demo_buffer=demo_buffer,
             wandb_logger=wandb_logger,
             config=config,
         )
@@ -201,15 +212,15 @@ def main(_):
         sampling_rng = jax.device_put(rng, sharding.replicate())
 
         bc_ckpt = checkpoints.restore_checkpoint(
-            FLAGS.bc_checkpoint_path,
-            bc_agent.state,
+            FLAGS.calql_checkpoint_path,
+            calql_agent.state,
         )
-        bc_agent = bc_agent.replace(state=bc_ckpt)
+        calql_agent = calql_agent.replace(state=bc_ckpt)
 
         print_green("starting actor loop")
         eval(
             env=env,
-            bc_agent=bc_agent,
+            calql_agent=calql_agent,
             sampling_rng=sampling_rng,
         )
 

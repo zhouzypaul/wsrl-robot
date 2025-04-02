@@ -3,8 +3,12 @@
 import jax
 import jax.numpy as jnp
 from agentlace.trainer import TrainerConfig
+from experiments.configs.cql_config import get_config as getCQLConfig
 from jax import nn
+from ml_collections import ConfigDict
 from serl_launcher.agents.continuous.bc import BCAgent
+from serl_launcher.agents.continuous.calql import CalQLAgent
+from serl_launcher.agents.continuous.cql import CQLAgent
 from serl_launcher.agents.continuous.sac import SACAgent
 from serl_launcher.agents.continuous.sac_hybrid_dual import SACAgentHybridDualArm
 from serl_launcher.agents.continuous.sac_hybrid_single import SACAgentHybridSingleArm
@@ -186,6 +190,54 @@ def make_sac_pixel_agent_hybrid_dual_arm(
         reward_bias=reward_bias,
         target_entropy=target_entropy,
         augmentation_function=make_batch_augmentation_func(image_keys),
+    )
+    return agent
+
+
+def make_calql_pixel_agent(
+    seed,
+    sample_obs,
+    sample_action,
+    image_keys=("image",),
+    encoder_type="resnet-pretrained",
+    reward_bias=0.0,
+    target_entropy=0.0,
+    discount=0.97,
+    is_calql=True,
+):
+    agentType = CalQLAgent if is_calql else CQLAgent
+    agent = agentType.create(
+        jax.random.PRNGKey(seed),
+        sample_obs,
+        sample_action,
+        encoder_type=encoder_type,
+        use_proprio=True,
+        image_keys=image_keys,
+        **getCQLConfig(
+            updates={
+                "policy_kwargs": {
+                    "tanh_squash_distribution": True,
+                    "std_parameterization": "exp",
+                    "std_min": 1e-5,
+                    "std_max": 5,
+                },
+                "critic_network_kwargs": {
+                    "activations": nn.tanh,
+                    "use_layer_norm": True,
+                    "hidden_dims": [256, 256],
+                },
+                "policy_network_kwargs": {
+                    "activations": nn.tanh,
+                    "use_layer_norm": True,
+                    "hidden_dims": [256, 256],
+                },
+                "temperature_init": 1e-2,
+                "discount": discount,
+                "reward_bias": reward_bias,
+                "target_entropy": target_entropy,
+                "augmentation_function": make_batch_augmentation_func(image_keys),
+            },
+        ).to_dict(),
     )
     return agent
 
