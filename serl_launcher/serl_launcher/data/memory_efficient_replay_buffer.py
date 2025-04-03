@@ -18,6 +18,10 @@ class MemoryEfficientReplayBuffer(ReplayBuffer):
         pixel_keys: Tuple[str, ...] = ("pixels",),
         include_next_actions: Optional[bool] = False,
         include_grasp_penalty: Optional[bool] = False,
+        include_mc_returns: Optional[bool] = False,
+        discount: Optional[float] = None,
+        reward_scale: float = 1.0,
+        reward_bias: float = 0.0,
     ):
         self.pixel_keys = pixel_keys
 
@@ -52,6 +56,10 @@ class MemoryEfficientReplayBuffer(ReplayBuffer):
             next_observation_space=next_observation_space,
             include_next_actions=include_next_actions,
             include_grasp_penalty=include_grasp_penalty,
+            include_mc_returns=include_mc_returns,
+            discount=discount,
+            reward_scale=reward_scale,
+            reward_bias=reward_bias,
         )
 
     def insert(self, data_dict: DatasetDict):
