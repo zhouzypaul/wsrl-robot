@@ -66,6 +66,9 @@ def actor(agent, data_store, intvn_data_store, env, sampling_rng):
     This is the actor loop, which runs when "--actor" is set to True.
     """
     if FLAGS.eval_checkpoint_step:
+        print_green(
+            "Eval loop with checkpoint at step {}".format(FLAGS.eval_checkpoint_step)
+        )
         success_counter = 0
         time_list = []
 
@@ -435,7 +438,9 @@ def main(_):
         ckpt_number = os.path.basename(
             checkpoints.latest_checkpoint(os.path.abspath(FLAGS.checkpoint_path))
         )[11:]
-        print_green(f"Loaded previous checkpoint at step {ckpt_number}.")
+        print_green(
+            f"Loaded previous checkpoint at step {ckpt_number}. Resuming training..."
+        )
 
     def create_replay_buffer_and_wandb_logger():
         replay_buffer = MemoryEfficientReplayBufferDataStore(

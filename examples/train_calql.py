@@ -35,7 +35,7 @@ flags.DEFINE_string("calql_checkpoint_path", None, "Path to save checkpoints.")
 flags.DEFINE_integer("eval_n_trajs", 0, "Number of trajectories to evaluate.")
 flags.DEFINE_integer("train_steps", 40_000, "Number of pretraining steps.")
 flags.DEFINE_bool("save_video", False, "Save video of the evaluation.")
-flags.DEFINE_multi_string("demo_path", None, "Path to the demo data.")
+flags.DEFINE_string("demo_path", None, "Path to the demo data.")
 
 
 flags.DEFINE_boolean(
@@ -184,16 +184,16 @@ def main(_):
         # set up wandb and logging
         wandb_logger = make_wandb_logger(
             project="hil-serl",
-            description=FLAGS.exp_name,
+            description="calql_pretraining",
             debug=FLAGS.debug,
         )
 
         assert FLAGS.demo_path is not None
+        assert os.path.isdir(FLAGS.demo_path)
 
-        for path in FLAGS.demo_path:
-            _, extension = os.path.splitext(path)
-            assert extension == ".pkl"
+        for path in glob.glob(os.path.join(FLAGS.demo_path, "*.pkl")):
             with open(path, "rb") as f:
+                print_green(f"Loading {path}")
                 transitions = pkl.load(f)
                 for transition in transitions:
                     demo_buffer.insert(transition)
@@ -213,7 +213,7 @@ def main(_):
         sampling_rng = jax.device_put(rng, sharding.replicate())
 
         bc_ckpt = checkpoints.restore_checkpoint(
-            FLAGS.calql_checkpoint_path,
+            os.path.abspath(FLAGS.calql_checkpoint_path),
             calql_agent.state,
         )
         calql_agent = calql_agent.replace(state=bc_ckpt)
