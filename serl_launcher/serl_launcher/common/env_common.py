@@ -6,7 +6,13 @@ import numpy as np
 def _determine_whether_sparse_reward(env_name):
     # return True if the environment is sparse-reward
     # determine if the env is sparse-reward or not
-    if "peg" in env_name:
+    if env_name in [
+        "peg_insertion",
+        "egg_flip",
+        "ram_insertion",
+        "usb_pickup_insertion",
+        "object_handover",
+    ]:
         is_sparse_reward = True
     else:
         raise NotImplementedError
@@ -19,6 +25,22 @@ def _determine_whether_sparse_reward(env_name):
 # task is completed, and reward_neg at all the other steps.
 ENV_REWARD_INFO = {
     "peg_insertion": {  # peg insertion default is 0/1 reward
+        "reward_pos": 1.0,
+        "reward_neg": 0.0,
+    },
+    "egg_flip": {  # egg flip default is 0/1 reward
+        "reward_pos": 1.0,
+        "reward_neg": 0.0,
+    },
+    "ram_insertion": {  # ram insertion default is 0/1 reward
+        "reward_pos": 1.0,
+        "reward_neg": 0.0,
+    },
+    "usb_pickup_insertion": {  # usb pickup insertion default is 0/1 reward
+        "reward_pos": 1.0,
+        "reward_neg": 0.0,
+    },
+    "object_handover": {  # object handover default is 0/1 reward
         "reward_pos": 1.0,
         "reward_neg": 0.0,
     },
@@ -40,6 +62,24 @@ def _get_negative_reward(env_name, reward_scale, reward_bias):
     if "peg" in env_name:
         reward_neg = (
             ENV_REWARD_INFO["peg_insertion"]["reward_neg"] * reward_scale + reward_bias
+        )
+    elif "egg" in env_name:
+        reward_neg = (
+            ENV_REWARD_INFO["egg_flip"]["reward_neg"] * reward_scale + reward_bias
+        )
+    elif "ram" in env_name:
+        reward_neg = (
+            ENV_REWARD_INFO["ram_insertion"]["reward_neg"] * reward_scale + reward_bias
+        )
+    elif "usb" in env_name:
+        reward_neg = (
+            ENV_REWARD_INFO["usb_pickup_insertion"]["reward_neg"] * reward_scale
+            + reward_bias
+        )
+    elif "object" in env_name:
+        reward_neg = (
+            ENV_REWARD_INFO["object_handover"]["reward_neg"] * reward_scale
+            + reward_bias
         )
     else:
         raise NotImplementedError(

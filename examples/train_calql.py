@@ -30,6 +30,7 @@ FLAGS = flags.FLAGS
 
 flags.DEFINE_string("exp_name", None, "Name of experiment corresponding to folder.")
 flags.DEFINE_string("group", None, "Name of wandb group")
+flags.DEFINE_string("description", "calql_pretraining", "Wandb exp name")
 flags.DEFINE_integer("seed", 42, "Random seed.")
 flags.DEFINE_string("ip", "localhost", "IP address of the learner.")
 flags.DEFINE_string("calql_checkpoint_path", None, "Path to save checkpoints.")
@@ -164,6 +165,7 @@ def main(_):
         sample_action=env.action_space.sample(),
         image_keys=config.image_keys,
         encoder_type=config.encoder_type,
+        reward_scale=FLAGS.reward_scale,
         reward_bias=FLAGS.reward_bias,  # eventually move this to the env?
         is_calql=FLAGS.use_calql,
     )
@@ -193,9 +195,12 @@ def main(_):
         # set up wandb and logging
         wandb_logger = make_wandb_logger(
             project="hil-serl",
-            description="calql_pretraining",
+            description=FLAGS.description,
             debug=FLAGS.debug,
             group=FLAGS.group,
+            variant={
+                "agent_config": calql_agent.config,
+            },
         )
 
         assert FLAGS.data_path is not None

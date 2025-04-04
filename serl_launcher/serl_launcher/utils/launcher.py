@@ -1,5 +1,7 @@
 # !/usr/bin/env python3
 
+from typing import Optional
+
 import jax
 import jax.numpy as jnp
 from agentlace.trainer import TrainerConfig
@@ -200,6 +202,7 @@ def make_calql_pixel_agent(
     sample_action,
     image_keys=("image",),
     encoder_type="resnet-pretrained",
+    reward_scale=1.0,
     reward_bias=0.0,
     target_entropy=0.0,
     discount=0.97,
@@ -234,6 +237,7 @@ def make_calql_pixel_agent(
                 "temperature_init": 1e-2,
                 "discount": discount,
                 "reward_bias": reward_bias,
+                "reward_scale": reward_scale,
                 "target_entropy": target_entropy,
                 "augmentation_function": make_batch_augmentation_func(image_keys),
             },
@@ -292,6 +296,7 @@ def make_wandb_logger(
     description: str = "serl_launcher",
     debug: bool = False,
     group: str = "wsrl",
+    variant: Optional[ConfigDict] = None,
 ):
     wandb_config = WandBLogger.get_default_config()
     wandb_config.update(
@@ -304,7 +309,7 @@ def make_wandb_logger(
     )
     wandb_logger = WandBLogger(
         wandb_config=wandb_config,
-        variant={},
+        variant=variant,
         debug=debug,
     )
     return wandb_logger
