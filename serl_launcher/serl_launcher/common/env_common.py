@@ -59,28 +59,8 @@ def _get_negative_reward(env_name, reward_scale, reward_bias):
 
     NOTE: this function should only be called on sparse-reward environments
     """
-    if "peg" in env_name:
-        reward_neg = (
-            ENV_REWARD_INFO["peg_insertion"]["reward_neg"] * reward_scale + reward_bias
-        )
-    elif "egg" in env_name:
-        reward_neg = (
-            ENV_REWARD_INFO["egg_flip"]["reward_neg"] * reward_scale + reward_bias
-        )
-    elif "ram" in env_name:
-        reward_neg = (
-            ENV_REWARD_INFO["ram_insertion"]["reward_neg"] * reward_scale + reward_bias
-        )
-    elif "usb" in env_name:
-        reward_neg = (
-            ENV_REWARD_INFO["usb_pickup_insertion"]["reward_neg"] * reward_scale
-            + reward_bias
-        )
-    elif "object" in env_name:
-        reward_neg = (
-            ENV_REWARD_INFO["object_handover"]["reward_neg"] * reward_scale
-            + reward_bias
-        )
+    if env_name in ENV_REWARD_INFO:
+        return ENV_REWARD_INFO[env_name]["reward_neg"] * reward_scale + reward_bias
     else:
         raise NotImplementedError(
             """
@@ -88,8 +68,6 @@ def _get_negative_reward(env_name, reward_scale, reward_bias):
             please add the reward_neg value in the ENV_REWARD_INFO dict.
             """
         )
-
-    return reward_neg
 
 
 def calc_return_to_go(
