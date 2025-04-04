@@ -291,6 +291,7 @@ def make_wandb_logger(
     project: str = "hil-serl",
     description: str = "serl_launcher",
     debug: bool = False,
+    group: str = "wsrl",
 ):
     wandb_config = WandBLogger.get_default_config()
     wandb_config.update(
@@ -298,6 +299,7 @@ def make_wandb_logger(
             "project": project,
             "exp_descriptor": description,
             "tag": description,
+            "group": group,
         }
     )
     wandb_logger = WandBLogger(

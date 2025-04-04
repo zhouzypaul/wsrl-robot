@@ -29,6 +29,7 @@ from serl_launcher.utils.launcher import (
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string("exp_name", None, "Name of experiment corresponding to folder.")
+flags.DEFINE_string("group", None, "Name of wandb group")
 flags.DEFINE_integer("seed", 42, "Random seed.")
 flags.DEFINE_string("ip", "localhost", "IP address of the learner.")
 flags.DEFINE_string("calql_checkpoint_path", None, "Path to save checkpoints.")
@@ -194,6 +195,7 @@ def main(_):
             project="hil-serl",
             description="calql_pretraining",
             debug=FLAGS.debug,
+            group=FLAGS.group,
         )
 
         assert FLAGS.data_path is not None
