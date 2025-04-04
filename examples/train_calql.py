@@ -29,13 +29,18 @@ from serl_launcher.utils.launcher import (
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string("exp_name", None, "Name of experiment corresponding to folder.")
+flags.DEFINE_string("group", None, "Name of wandb group")
+flags.DEFINE_string("description", "calql_pretraining", "Wandb exp name")
 flags.DEFINE_integer("seed", 42, "Random seed.")
 flags.DEFINE_string("ip", "localhost", "IP address of the learner.")
 flags.DEFINE_string("calql_checkpoint_path", None, "Path to save checkpoints.")
 flags.DEFINE_integer("eval_n_trajs", 0, "Number of trajectories to evaluate.")
 flags.DEFINE_integer("train_steps", 40_000, "Number of pretraining steps.")
 flags.DEFINE_bool("save_video", False, "Save video of the evaluation.")
-flags.DEFINE_string("demo_path", None, "Path to the demo data.")
+flags.DEFINE_string("data_path", None, "Path to the demo data.")
+flags.DEFINE_bool("use_calql", False, "Use CalQL instead of CQL.")
+flags.DEFINE_float("reward_scale", 1.0, "Reward scale")
+flags.DEFINE_float("reward_bias", 0.0, "Reward bias")
 
 
 flags.DEFINE_boolean(
@@ -160,7 +165,9 @@ def main(_):
         sample_action=env.action_space.sample(),
         image_keys=config.image_keys,
         encoder_type=config.encoder_type,
-        is_calql=False,
+        reward_scale=FLAGS.reward_scale,
+        reward_bias=FLAGS.reward_bias,  # eventually move this to the env?
+        is_calql=FLAGS.use_calql,
     )
 
     # replicate agent across devices
@@ -179,26 +186,33 @@ def main(_):
             env.action_space,
             capacity=config.replay_buffer_capacity,
             image_keys=config.image_keys,
+            include_mc_returns=FLAGS.use_calql,
+            discount=calql_agent.config["discount"],
+            reward_scale=FLAGS.reward_scale,
+            reward_bias=FLAGS.reward_bias,
         )
 
         # set up wandb and logging
         wandb_logger = make_wandb_logger(
             project="hil-serl",
-            description="calql_pretraining",
+            description=FLAGS.description,
             debug=FLAGS.debug,
+            group=FLAGS.group,
+            variant={
+                "agent_config": calql_agent.config,
+            },
         )
 
-        assert FLAGS.demo_path is not None
-        assert os.path.isdir(FLAGS.demo_path)
+        assert FLAGS.data_path is not None
+        assert os.path.isdir(FLAGS.data_path)
 
-        for path in glob.glob(os.path.join(FLAGS.demo_path, "*.pkl")):
+        for path in glob.glob(os.path.join(FLAGS.data_path, "*.pkl")):
             with open(path, "rb") as f:
                 print_green(f"Loading {path}")
                 transitions = pkl.load(f)
                 for transition in transitions:
                     demo_buffer.insert(transition)
         print_green(f"demo buffer size: {len(demo_buffer)}")
-
         # learner loop
         print_green("starting learner loop")
         train(

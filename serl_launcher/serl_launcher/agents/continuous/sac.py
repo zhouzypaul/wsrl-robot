@@ -362,7 +362,10 @@ class SACAgent(flax.struct.PyTreeNode):
             batch = self.config["augmentation_function"](batch, aug_rng)
 
         batch = batch.copy(
-            add_or_replace={"rewards": batch["rewards"] + self.config["reward_bias"]}
+            add_or_replace={
+                "rewards": batch["rewards"] * self.config["reward_scale"]
+                + self.config["reward_bias"]
+            }
         )
 
         # Compute gradients and update params
@@ -448,6 +451,7 @@ class SACAgent(flax.struct.PyTreeNode):
         critic_subsample_size: Optional[int] = None,
         image_keys: Iterable[str] = None,
         augmentation_function: Optional[callable] = None,
+        reward_scale: float = 1.0,
         reward_bias: float = 0.0,
         **kwargs,
     ):
@@ -498,6 +502,7 @@ class SACAgent(flax.struct.PyTreeNode):
                 target_entropy=target_entropy,
                 backup_entropy=backup_entropy,
                 image_keys=image_keys,
+                reward_scale=reward_scale,
                 reward_bias=reward_bias,
                 augmentation_function=augmentation_function,
                 n_actions=n_actions,

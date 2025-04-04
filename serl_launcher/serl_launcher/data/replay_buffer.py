@@ -1,10 +1,29 @@
 import collections
-from typing import Any, Iterator, Optional, Sequence, Tuple, Union
+from typing import Iterable, Optional, Union
 
 import gymnasium as gym
 import jax
 import numpy as np
+from absl import flags
+from flax.core import frozen_dict
+from serl_launcher.common.env_common import calc_return_to_go
 from serl_launcher.data.dataset import Dataset, DatasetDict
+
+FLAGS = flags.FLAGS
+
+
+def _sample(
+    dataset_dict: Union[np.ndarray, DatasetDict], indx: np.ndarray
+) -> DatasetDict:
+    if isinstance(dataset_dict, np.ndarray):
+        return dataset_dict[indx]
+    elif isinstance(dataset_dict, dict):
+        batch = {}
+        for k, v in dataset_dict.items():
+            batch[k] = _sample(v, indx)
+    else:
+        raise TypeError("Unsupported type.")
+    return batch
 
 
 def _init_replay_dict(
@@ -43,6 +62,10 @@ class ReplayBuffer(Dataset):
         include_next_actions: Optional[bool] = False,
         include_label: Optional[bool] = False,
         include_grasp_penalty: Optional[bool] = False,
+        include_mc_returns: Optional[bool] = False,
+        discount: Optional[float] = None,
+        reward_scale: Optional[float] = 1,
+        reward_bias: Optional[float] = 0,
     ):
         if next_observation_space is None:
             next_observation_space = observation_space
@@ -70,17 +93,55 @@ class ReplayBuffer(Dataset):
         if include_grasp_penalty:
             dataset_dict["grasp_penalty"] = np.empty((capacity,), dtype=np.float32)
 
+        if include_mc_returns:
+            assert discount is not None
+            dataset_dict["mc_returns"] = np.empty((capacity,), dtype=np.float32)
+            self._allow_idxs = []
+            self._traj_start_idx = 0
+            self.reward_scale = reward_scale
+            self.reward_bias = reward_bias
+            self.discount = discount
+
         super().__init__(dataset_dict)
 
         self._size = 0
         self._capacity = capacity
         self._insert_index = 0
+        self._include_mc_returns = include_mc_returns
 
     def __len__(self) -> int:
         return self._size
 
     def insert(self, data_dict: DatasetDict):
+        data_dict["mc_returns"] = None
         _insert_recursively(self.dataset_dict, data_dict, self._insert_index)
+        if "dones" not in data_dict:
+            data_dict["dones"] = 1 - data_dict["masks"]
+        if self._include_mc_returns and data_dict["dones"] == 1.0:
+            # compute the mc_returns, assuming replay buffer capacity is more than the number of online steps
+            rewards = self.dataset_dict["rewards"][
+                self._traj_start_idx : self._insert_index + 1
+            ]
+            masks = self.dataset_dict["masks"][
+                self._traj_start_idx : self._insert_index + 1
+            ]
+            mc_returns = calc_return_to_go(
+                FLAGS.exp_name,
+                rewards,
+                masks,
+                self.discount,
+                self.reward_scale,
+                self.reward_bias,
+            )
+
+            self.dataset_dict["mc_returns"][
+                self._traj_start_idx : self._insert_index + 1
+            ] = mc_returns
+
+            self._allow_idxs.extend(
+                list(range(self._traj_start_idx, self._insert_index + 1))
+            )
+            self._traj_start_idx = self._insert_index + 1
 
         self._insert_index = (self._insert_index + 1) % self._capacity
         self._size = min(self._size + 1, self._capacity)
@@ -112,3 +173,32 @@ class ReplayBuffer(Dataset):
                 raise RuntimeError(f"last_idx {last_idx} >= self._size {self._size}")
             last_idx, batch = self.download(last_idx, self._size)
             yield batch
+
+    def sample(
+        self,
+        batch_size: int,
+        keys: Optional[Iterable[str]] = None,
+        indx: Optional[np.ndarray] = None,
+    ) -> frozen_dict.FrozenDict:
+        if indx is None:
+            if self._include_mc_returns:
+                indx = self.np_random.choice(
+                    self._allow_idxs, size=batch_size, replace=True
+                )
+            else:
+                if hasattr(self.np_random, "integers"):
+                    indx = self.np_random.integers(len(self), size=batch_size)
+                else:
+                    indx = self.np_random.randint(len(self), size=batch_size)
+        batch = dict()
+
+        if keys is None:
+            keys = self.dataset_dict.keys()
+
+        for k in keys:
+            if isinstance(self.dataset_dict[k], dict):
+                batch[k] = _sample(self.dataset_dict[k], indx)
+            else:
+                batch[k] = self.dataset_dict[k][indx]
+
+        return frozen_dict.freeze(batch)

@@ -18,6 +18,10 @@ class MemoryEfficientReplayBuffer(ReplayBuffer):
         pixel_keys: Tuple[str, ...] = ("pixels",),
         include_next_actions: Optional[bool] = False,
         include_grasp_penalty: Optional[bool] = False,
+        include_mc_returns: Optional[bool] = False,
+        discount: Optional[float] = None,
+        reward_scale: float = 1.0,
+        reward_bias: float = 0.0,
     ):
         self.pixel_keys = pixel_keys
 
@@ -52,6 +56,10 @@ class MemoryEfficientReplayBuffer(ReplayBuffer):
             next_observation_space=next_observation_space,
             include_next_actions=include_next_actions,
             include_grasp_penalty=include_grasp_penalty,
+            include_mc_returns=include_mc_returns,
+            discount=discount,
+            reward_scale=reward_scale,
+            reward_bias=reward_bias,
         )
 
     def insert(self, data_dict: DatasetDict):
@@ -113,17 +121,27 @@ class MemoryEfficientReplayBuffer(ReplayBuffer):
         """
 
         if indx is None:
-            if hasattr(self.np_random, "integers"):
-                indx = self.np_random.integers(len(self), size=batch_size)
+            if self._include_mc_returns:
+                # Sample from _allow_idxs (indices with valid MC returns)
+                indx = self.np_random.choice(
+                    self._allow_idxs, size=batch_size, replace=True
+                )
             else:
-                indx = self.np_random.randint(len(self), size=batch_size)
+                # Otherwise sample normally
+                if hasattr(self.np_random, "integers"):
+                    indx = self.np_random.integers(len(self), size=batch_size)
+                else:
+                    indx = self.np_random.randint(len(self), size=batch_size)
 
             for i in range(batch_size):
                 while not self._is_correct_index[indx[i]]:
-                    if hasattr(self.np_random, "integers"):
-                        indx[i] = self.np_random.integers(len(self))
+                    if self._include_mc_returns:
+                        indx[i] = self.np_random.choice(self._allow_idxs)
                     else:
-                        indx[i] = self.np_random.randint(len(self))
+                        if hasattr(self.np_random, "integers"):
+                            indx[i] = self.np_random.integers(len(self))
+                        else:
+                            indx[i] = self.np_random.randint(len(self))
         else:
             raise NotImplementedError()
 
