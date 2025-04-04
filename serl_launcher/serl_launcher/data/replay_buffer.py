@@ -1,14 +1,29 @@
 import collections
-from typing import Any, Iterable, Iterator, Optional, Sequence, Tuple, Union
+from typing import Iterable, Optional, Union
 
 import gymnasium as gym
 import jax
 import numpy as np
 from absl import flags
 from flax.core import frozen_dict
+from serl_launcher.common.env_common import calc_return_to_go
 from serl_launcher.data.dataset import Dataset, DatasetDict
 
 FLAGS = flags.FLAGS
+
+
+def _sample(
+    dataset_dict: Union[np.ndarray, DatasetDict], indx: np.ndarray
+) -> DatasetDict:
+    if isinstance(dataset_dict, np.ndarray):
+        return dataset_dict[indx]
+    elif isinstance(dataset_dict, dict):
+        batch = {}
+        for k, v in dataset_dict.items():
+            batch[k] = _sample(v, indx)
+    else:
+        raise TypeError("Unsupported type.")
+    return batch
 
 
 def _init_replay_dict(
@@ -83,6 +98,8 @@ class ReplayBuffer(Dataset):
             dataset_dict["mc_returns"] = np.empty((capacity,), dtype=np.float32)
             self._allow_idxs = []
             self._traj_start_idx = 0
+            self.reward_scale = reward_scale
+            self.reward_bias = reward_bias
             self.discount = discount
 
         super().__init__(dataset_dict)
@@ -90,15 +107,17 @@ class ReplayBuffer(Dataset):
         self._size = 0
         self._capacity = capacity
         self._insert_index = 0
+        self._include_mc_returns = include_mc_returns
 
     def __len__(self) -> int:
         return self._size
 
     def insert(self, data_dict: DatasetDict):
+        data_dict["mc_returns"] = None
         _insert_recursively(self.dataset_dict, data_dict, self._insert_index)
         if "dones" not in data_dict:
             data_dict["dones"] = 1 - data_dict["masks"]
-        if self.discount is not None and data_dict["dones"] == 1.0:
+        if self._include_mc_returns and data_dict["dones"] == 1.0:
             # compute the mc_returns, assuming replay buffer capacity is more than the number of online steps
             rewards = self.dataset_dict["rewards"][
                 self._traj_start_idx : self._insert_index + 1
@@ -109,7 +128,7 @@ class ReplayBuffer(Dataset):
             self.dataset_dict["mc_returns"][
                 self._traj_start_idx : self._insert_index + 1
             ] = calc_return_to_go(
-                FLAGS.env,
+                FLAGS.exp_name,
                 rewards,
                 masks,
                 self.discount,
@@ -160,7 +179,7 @@ class ReplayBuffer(Dataset):
         indx: Optional[np.ndarray] = None,
     ) -> frozen_dict.FrozenDict:
         if indx is None:
-            if self.discount is not None:
+            if self._include_mc_returns:
                 indx = self.np_random.choice(
                     self._allow_idxs, size=batch_size, replace=True
                 )
