@@ -84,7 +84,7 @@ def calc_return_to_go(
         """
         If the env has sparse reward and the trajectory is all negative rewards,
         we use r / (1-gamma) as return to go.
-        For exapmle, if gamma = 0.99 and the rewards = [-1, -1, -1],
+        For example, if gamma = 0.99 and the rewards = [-1, -1, -1],
         then return_to_go = [-100, -100, -100]
         """
         return_to_go = [float(reward_neg / (1 - gamma))] * len(rewards)
@@ -93,8 +93,6 @@ def calc_return_to_go(
         return_to_go = [0] * len(rewards)
         prev_return = 0 if not infinite_horizon else float(rewards[-1] / (1 - gamma))
         for i in range(len(rewards)):
-            return_to_go[-i - 1] = rewards[-i - 1] + gamma * prev_return * (
-                masks[-i - 1]
-            )
+            return_to_go[-i - 1] = rewards[-i - 1] + gamma * prev_return * masks[-i - 1]
             prev_return = return_to_go[-i - 1]
     return np.array(return_to_go, dtype=np.float32)

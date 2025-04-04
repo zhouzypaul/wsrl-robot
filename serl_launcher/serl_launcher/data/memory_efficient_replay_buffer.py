@@ -121,17 +121,27 @@ class MemoryEfficientReplayBuffer(ReplayBuffer):
         """
 
         if indx is None:
-            if hasattr(self.np_random, "integers"):
-                indx = self.np_random.integers(len(self), size=batch_size)
+            if self._include_mc_returns:
+                # Sample from _allow_idxs (indices with valid MC returns)
+                indx = self.np_random.choice(
+                    self._allow_idxs, size=batch_size, replace=True
+                )
             else:
-                indx = self.np_random.randint(len(self), size=batch_size)
+                # Otherwise sample normally
+                if hasattr(self.np_random, "integers"):
+                    indx = self.np_random.integers(len(self), size=batch_size)
+                else:
+                    indx = self.np_random.randint(len(self), size=batch_size)
 
             for i in range(batch_size):
                 while not self._is_correct_index[indx[i]]:
-                    if hasattr(self.np_random, "integers"):
-                        indx[i] = self.np_random.integers(len(self))
+                    if self._include_mc_returns:
+                        indx[i] = self.np_random.choice(self._allow_idxs)
                     else:
-                        indx[i] = self.np_random.randint(len(self))
+                        if hasattr(self.np_random, "integers"):
+                            indx[i] = self.np_random.integers(len(self))
+                        else:
+                            indx[i] = self.np_random.randint(len(self))
         else:
             raise NotImplementedError()
 

@@ -125,9 +125,7 @@ class ReplayBuffer(Dataset):
             masks = self.dataset_dict["masks"][
                 self._traj_start_idx : self._insert_index + 1
             ]
-            self.dataset_dict["mc_returns"][
-                self._traj_start_idx : self._insert_index + 1
-            ] = calc_return_to_go(
+            mc_returns = calc_return_to_go(
                 FLAGS.exp_name,
                 rewards,
                 masks,
@@ -135,6 +133,10 @@ class ReplayBuffer(Dataset):
                 self.reward_scale,
                 self.reward_bias,
             )
+
+            self.dataset_dict["mc_returns"][
+                self._traj_start_idx : self._insert_index + 1
+            ] = mc_returns
 
             self._allow_idxs.extend(
                 list(range(self._traj_start_idx, self._insert_index + 1))

@@ -224,12 +224,12 @@ def make_calql_pixel_agent(
                 "critic_network_kwargs": {
                     "activations": nn.tanh,
                     "use_layer_norm": True,
-                    "hidden_dims": [256, 256],
+                    "hidden_dims": [256, 256, 256, 256],
                 },
                 "policy_network_kwargs": {
                     "activations": nn.tanh,
                     "use_layer_norm": True,
-                    "hidden_dims": [256, 256],
+                    "hidden_dims": [256, 256, 256, 256],
                 },
                 "temperature_init": 1e-2,
                 "discount": discount,
