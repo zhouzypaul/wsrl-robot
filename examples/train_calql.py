@@ -11,34 +11,34 @@ import jax.numpy as jnp
 import numpy as np
 import tqdm
 from absl import app, flags
-from experiments.configs.cql_config import get_config as getCQLConfig
 from experiments.configs.train_config import DefaultTrainingConfig
 from experiments.mappings import CONFIG_MAPPING
 from flax.training import checkpoints
 from gymnasium.wrappers.record_episode_statistics import RecordEpisodeStatistics
-from ml_collections import ConfigDict
 from serl_launcher.agents.continuous.calql import CalQLAgent
 from serl_launcher.agents.continuous.cql import CQLAgent
 from serl_launcher.data.data_store import MemoryEfficientReplayBufferDataStore
-from serl_launcher.utils.launcher import (
-    make_calql_pixel_agent,
-    make_trainer_config,
-    make_wandb_logger,
-)
+from serl_launcher.utils.launcher import make_calql_pixel_agent, make_wandb_logger
 
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string("exp_name", None, "Name of experiment corresponding to folder.")
 flags.DEFINE_string("group", None, "Name of wandb group")
-flags.DEFINE_string("description", "calql_pretraining", "Wandb exp name")
+flags.DEFINE_string("description", "", "Wandb exp name")
 flags.DEFINE_integer("seed", 42, "Random seed.")
 flags.DEFINE_string("ip", "localhost", "IP address of the learner.")
 flags.DEFINE_string("calql_checkpoint_path", None, "Path to save checkpoints.")
+flags.DEFINE_integer(
+    "checkpoint_step", None, "Checkpoint step. If None, use the latest checkpoint."
+)
+flags.DEFINE_integer(
+    "save_period", 50_000, "How often to save checkpoints during training."
+)
 flags.DEFINE_integer("eval_n_trajs", 0, "Number of trajectories to evaluate.")
-flags.DEFINE_integer("train_steps", 40_000, "Number of pretraining steps.")
+flags.DEFINE_integer("train_steps", 200_000, "Number of pretraining steps.")
 flags.DEFINE_bool("save_video", False, "Save video of the evaluation.")
 flags.DEFINE_string("data_path", None, "Path to the demo data.")
-flags.DEFINE_bool("use_calql", False, "Use CalQL instead of CQL.")
+flags.DEFINE_bool("use_calql", True, "Use CalQL instead of CQL.")
 flags.DEFINE_float("reward_scale", 1.0, "Reward scale")
 flags.DEFINE_float("reward_bias", 0.0, "Reward bias")
 
@@ -128,11 +128,7 @@ def train(
         if step % config.log_period == 0 and wandb_logger:
             wandb_logger.log({"calql": calql_update_info}, step=step)
 
-        if (
-            step > 0
-            and config.checkpoint_period
-            and step % config.checkpoint_period == 0
-        ):
+        if step > 0 and FLAGS.save_period and step % FLAGS.save_period == 0:
             checkpoints.save_checkpoint(
                 os.path.abspath(FLAGS.calql_checkpoint_path),
                 calql_agent.state,
@@ -195,11 +191,12 @@ def main(_):
         # set up wandb and logging
         wandb_logger = make_wandb_logger(
             project="hil-serl",
-            description=FLAGS.description,
+            description=f"calql_alpha_{calql_agent.config['cql_alpha']}_reward_bias_{FLAGS.reward_bias}_{FLAGS.description}",
             debug=FLAGS.debug,
             group=FLAGS.group,
             variant={
-                "agent_config": calql_agent.config,
+                **FLAGS.flag_values_dict(),
+                "agent_config": dict(**calql_agent.config),
             },
         )
 
@@ -226,11 +223,12 @@ def main(_):
         rng = jax.random.PRNGKey(FLAGS.seed)
         sampling_rng = jax.device_put(rng, sharding.replicate())
 
-        bc_ckpt = checkpoints.restore_checkpoint(
+        ckpt = checkpoints.restore_checkpoint(
             os.path.abspath(FLAGS.calql_checkpoint_path),
             calql_agent.state,
+            step=FLAGS.checkpoint_step,
         )
-        calql_agent = calql_agent.replace(state=bc_ckpt)
+        calql_agent = calql_agent.replace(state=ckpt)
 
         print_green("starting actor loop")
         eval(
