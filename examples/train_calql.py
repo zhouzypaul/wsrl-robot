@@ -226,11 +226,11 @@ def main(_):
         rng = jax.random.PRNGKey(FLAGS.seed)
         sampling_rng = jax.device_put(rng, sharding.replicate())
 
-        bc_ckpt = checkpoints.restore_checkpoint(
+        calql_ckpt = checkpoints.restore_checkpoint(
             os.path.abspath(FLAGS.calql_checkpoint_path),
             calql_agent.state,
         )
-        calql_agent = calql_agent.replace(state=bc_ckpt)
+        calql_agent = calql_agent.replace(state=calql_ckpt)
 
         print_green("starting actor loop")
         eval(
