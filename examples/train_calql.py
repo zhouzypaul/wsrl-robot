@@ -128,11 +128,11 @@ def train(
         if step % config.log_period == 0 and wandb_logger:
             wandb_logger.log({"calql": calql_update_info}, step=step)
 
-        if step > 0 and FLAGS.save_period and step % FLAGS.save_period == 0:
+        if FLAGS.save_period and (step + 1) % FLAGS.save_period == 0:
             checkpoints.save_checkpoint(
                 os.path.abspath(FLAGS.calql_checkpoint_path),
                 calql_agent.state,
-                step=step,
+                step=step + 1,
                 keep=100,
             )
 
@@ -163,6 +163,7 @@ def main(_):
         encoder_type=config.encoder_type,
         reward_scale=FLAGS.reward_scale,
         reward_bias=FLAGS.reward_bias,  # eventually move this to the env?
+        discount=config.discount,
         is_calql=FLAGS.use_calql,
     )
 
@@ -183,7 +184,7 @@ def main(_):
             capacity=config.replay_buffer_capacity,
             image_keys=config.image_keys,
             include_mc_returns=FLAGS.use_calql,
-            discount=calql_agent.config["discount"],
+            discount=config.discount,
             reward_scale=FLAGS.reward_scale,
             reward_bias=FLAGS.reward_bias,
         )
@@ -191,7 +192,7 @@ def main(_):
         # set up wandb and logging
         wandb_logger = make_wandb_logger(
             project="hil-serl",
-            description=f"calql_alpha_{calql_agent.config['cql_alpha']}_reward_bias_{FLAGS.reward_bias}_{FLAGS.description}",
+            description=f"calql_alpha_{calql_agent.config['cql_alpha']}_reward_bias_{FLAGS.reward_bias}_discount_{config.discount}_{FLAGS.description}",
             debug=FLAGS.debug,
             group=FLAGS.group,
             variant={
