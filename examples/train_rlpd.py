@@ -44,6 +44,8 @@ flags.DEFINE_string("checkpoint_path", None, "Path to save checkpoints.")
 flags.DEFINE_integer("eval_checkpoint_step", 0, "Step to evaluate the checkpoint.")
 flags.DEFINE_integer("eval_n_trajs", 0, "Number of trajectories to evaluate.")
 flags.DEFINE_boolean("save_video", False, "Save video.")
+flags.DEFINE_float("reward_scale", 1.0, "Reward scale")
+flags.DEFINE_float("reward_bias", 0.0, "Reward bias")
 
 flags.DEFINE_boolean(
     "debug", False, "Debug mode."
@@ -402,6 +404,8 @@ def main(_):
             image_keys=config.image_keys,
             encoder_type=config.encoder_type,
             discount=config.discount,
+            reward_scale=FLAGS.reward_scale,
+            reward_bias=FLAGS.reward_bias,
         )
         include_grasp_penalty = False
     elif config.setup_mode == "single-arm-learned-gripper":
