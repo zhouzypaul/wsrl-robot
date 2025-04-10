@@ -30,6 +30,7 @@ from serl_launcher.utils.launcher import (
 )
 from serl_launcher.utils.timer_utils import Timer
 from serl_launcher.utils.train_utils import concat_batches
+from serl_launcher.wrappers.past_n_statistic import RecordPastNStatisticsWrapper
 
 FLAGS = flags.FLAGS
 
@@ -267,6 +268,7 @@ def learner(rng, agent, replay_buffer, demo_buffer, wandb_logger=None):
         """Callback for when server receives stats request."""
         assert type == "send-stats", f"Invalid request type: {type}"
         if wandb_logger is not None:
+            payload["actor_steps"] = len(replay_buffer)  # add in the actor steps
             wandb_logger.log(payload, step=step)
         return {}  # not expecting a response
 
@@ -385,6 +387,7 @@ def main(_):
         classifier=True,
     )
     env = RecordEpisodeStatistics(env)
+    env = RecordPastNStatisticsWrapper(env, n=10)
 
     rng, sampling_rng = jax.random.split(rng)
 
