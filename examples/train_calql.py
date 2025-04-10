@@ -72,7 +72,6 @@ def eval(
     """
     This is the actor loop, which runs when "--actor" is set to True.
     """
-    # TODO: ignore for now
     success_counter = 0
     time_list = []
     for episode in range(FLAGS.eval_n_trajs):
@@ -201,6 +200,7 @@ def main(_):
             variant={
                 "agent_config": calql_agent.config,
             },
+            entity="rl-finetune",
         )
 
         assert FLAGS.data_path is not None

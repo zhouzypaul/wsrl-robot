@@ -1,5 +1,7 @@
+import glob
 import os
 import pickle as pkl
+import random
 from typing import Union
 
 import jax
@@ -8,6 +10,8 @@ import wandb
 from absl import app, flags
 from experiments.configs.train_config import DefaultTrainingConfig
 from experiments.mappings import CONFIG_MAPPING
+from flax.training import checkpoints
+from jax import numpy as jnp
 from serl_launcher.agents.continuous.calql import CalQLAgent
 from serl_launcher.agents.continuous.cql import CQLAgent
 from serl_launcher.common.visualization import mc_q_visualization
@@ -22,17 +26,33 @@ flags.DEFINE_bool("use_calql", True, "Use CalQL instead of CQL.")
 flags.DEFINE_float("reward_scale", 1.0, "Reward scale")
 flags.DEFINE_float("reward_bias", 0.0, "Reward bias")
 flags.DEFINE_integer("seed", 42, "Random seed.")
+flags.DEFINE_bool("debug", False, "Debug mode.")
 
 
 devices = jax.local_devices()
 num_devices = len(devices)
+sharding = jax.sharding.PositionalSharding(devices)
+
+
+def print_green(x):
+    return print("\033[92m {}\033[00m".format(x))
 
 
 def _batch_dicts(stat):
-    """stat is a list of dict, turn it into a dict of list"""
+    """Convert a list of dictionaries into a dictionary of lists, handling nested dictionaries."""
+    if not stat:
+        return {}
+
     d = {}
-    for k in stat[0].keys():
-        d[k] = np.array([s[k] for s in stat])
+
+    first_item = stat[0]
+    for k in first_item.keys():
+        if isinstance(first_item[k], dict):
+            nested_items = [s[k] for s in stat]
+            d[k] = _batch_dicts(nested_items)
+        else:
+            d[k] = np.array([s[k] for s in stat])
+
     return d
 
 
@@ -73,28 +93,50 @@ def main(_):
         calql_agent.state,
     )
     calql_agent = calql_agent.replace(state=calql_ckpt)
-
     wandb_logger = make_wandb_logger(
         project="hil-serl",
         description=FLAGS.description,
         variant={
             "agent_config": calql_agent.config,
         },
+        debug=FLAGS.debug,
+        entity="rl-finetune",
     )
 
     # get trajectories
-    assert FLAGS.data_path is not None and os.path.isfile(
+    assert os.path.isfile(FLAGS.data_path) or os.path.isdir(
         FLAGS.data_path
     ), "Invalid data path."
-    trajectories = []
-    with open(FLAGS.data_path, "rb") as f:
-        transitions = pkl.load(f)
-        trajectory = []
-        for transition in transitions:
-            trajectory.append(transition)
-            if transition["dones"]:
-                trajectories.append(_batch_dicts(trajectory))
+
+    # from buffer transitions
+    if os.path.isdir(FLAGS.data_path):
+        trajectories = []
+        for path in glob.glob(os.path.join(FLAGS.data_path, "*.pkl")):
+            with open(path, "rb") as f:
+                print_green(f"Loading {path}")
+                transitions = pkl.load(f)
                 trajectory = []
+                for transition in transitions:
+                    trajectory.append(transition)
+                    if transition["dones"]:
+                        trajectories.append(_batch_dicts(trajectory))
+                        trajectory = []
+
+    else:
+        # from demo trajectories
+        trajectories = []
+        with open(FLAGS.data_path, "rb") as f:
+            transitions = pkl.load(f)
+            trajectory = []
+            for transition in transitions:
+                trajectory.append(transition)
+                if transition["dones"]:
+                    trajectories.append(_batch_dicts(trajectory))
+                    trajectory = []
+
+    # subsample 20 trajectories
+    if len(trajectories) > 20:
+        trajectories = random.sample(trajectories, 20)
 
     print_green(f"loaded {len(trajectories)} trajectories")
     wandb_logger.log(

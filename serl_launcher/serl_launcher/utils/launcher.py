@@ -297,6 +297,7 @@ def make_wandb_logger(
     debug: bool = False,
     group: str = "wsrl",
     variant: Optional[ConfigDict] = None,
+    entity: Optional[str] = None,
 ):
     wandb_config = WandBLogger.get_default_config()
     wandb_config.update(
@@ -305,6 +306,7 @@ def make_wandb_logger(
             "exp_descriptor": description,
             "tag": description,
             "group": group,
+            "entity": entity,
         }
     )
     wandb_logger = WandBLogger(

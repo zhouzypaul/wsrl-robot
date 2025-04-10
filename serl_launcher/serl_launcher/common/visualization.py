@@ -1,6 +1,7 @@
 import jax
 import matplotlib.pyplot as plt
 import numpy as np
+import tqdm
 from absl import flags
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from serl_launcher.common.env_common import calc_return_to_go
@@ -16,19 +17,13 @@ def make_single_trajectory_mc_visual(
     canvas = FigureCanvas(fig)
     plt.xlim([0, len(q_estimates[0])])
 
-    # double Q
-    if len(q_estimates.shape) == 2:
-        axs[0].plot(q_estimates[0, :], linestyle="--", marker="o")
-        axs[0].plot(q_estimates[1, :], linestyle="--", marker="o")
-    else:
-        axs[0].plot(q_estimates, linestyle="--", marker="o")
+    # plot each Q-value directly
+    for i in range(q_estimates.shape[0]):
+        axs[0].plot(q_estimates[i], linestyle="--", marker="o", label=f"Q{i}")
     axs[0].set_ylabel("q values")
+    axs[0].legend()
 
-    if len(mc_returns.shape) == 2:
-        axs[1].plot(mc_returns[0, :], linestyle="--", marker="o")
-        axs[1].plot(mc_returns[1, :], linestyle="--", marker="o")
-    else:
-        axs[1].plot(mc_returns, linestyle="--", marker="o")
+    axs[1].plot(mc_returns, linestyle="--", marker="o")
     axs[1].set_ylabel("mc_returns")
 
     plt.tight_layout()
@@ -41,28 +36,25 @@ def make_single_trajectory_mc_visual(
 
 
 def mc_q_visualization(trajs, agent, discount=0.99, seed=0, exp_name="peg_insertion"):
-    def _batch_dicts(stat):
-        """stat is a list of dict, turn it into a dict of list"""
-        d = {}
-        for k in stat[0].keys():
-            d[k] = np.array([s[k] for s in stat])
-        return d
-
     rng = jax.random.PRNGKey(seed)
     n_trajs = len(trajs)
     visualization_images = []
 
     # for each trajectory
-    for i in range(n_trajs):
-        observations = np.array(trajs[i]["observations"])
-        actions = np.array(trajs[i]["actions"])
-        rewards = np.array(trajs[i]["rewards"])
+    for i in tqdm.tqdm(
+        range(n_trajs),
+        dynamic_ncols=True,
+        desc="mc_q_visualization",
+    ):
+        observations = trajs[i]["observations"]
+        actions = trajs[i]["actions"]
+        rewards = trajs[i]["rewards"]
         if "masks" in trajs[i]:
-            masks = np.array(trajs[i]["masks"])
+            masks = trajs[i]["masks"]
         else:
             masks = np.array([not d for d in trajs[i]["dones"]])
 
-        q_pred = agent.forward_critic(observations, actions, rng=None, train=False)
+        q_pred = agent.forward_critic(observations, actions, rng=rng, train=False)
 
         mc_returns = calc_return_to_go(
             exp_name,

@@ -106,7 +106,6 @@ class FrankaEnv(gym.Env):
         self.resetpos = np.concatenate(
             [config.RESET_POSE[:3], euler_2_quat(config.RESET_POSE[3:])]
         )
-        self._update_currpos()
         self.last_gripper_act = time.time()
         self.lastsent = time.time()
         self.randomreset = config.RANDOM_RESET
@@ -165,6 +164,7 @@ class FrankaEnv(gym.Env):
         if fake_env:
             return
 
+        self._update_currpos()
         self.cap = None
         self.init_cameras(config.REALSENSE_CAMERAS)
         if self.display_image:
