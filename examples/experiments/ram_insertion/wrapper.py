@@ -5,7 +5,6 @@ import numpy as np
 import requests
 from franka_env.envs.franka_env import FrankaEnv
 from franka_env.utils.rotations import euler_2_quat
-from pynput import keyboard
 from scipy.spatial.transform import Rotation as R
 
 
@@ -18,8 +17,11 @@ class RAMEnv(FrankaEnv):
             if str(key) == "Key.f1":
                 self.should_regrasp = True
 
-        listener = keyboard.Listener(on_press=on_press)
-        listener.start()
+        if not self.fake_env:
+            from pynput import keyboard
+
+            listener = keyboard.Listener(on_press=on_press)
+            listener.start()
 
     def go_to_reset(self, joint_reset=False):
         """

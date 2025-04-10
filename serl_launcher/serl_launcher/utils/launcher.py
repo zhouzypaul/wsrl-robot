@@ -6,6 +6,7 @@ import jax
 import jax.numpy as jnp
 from agentlace.trainer import TrainerConfig
 from experiments.configs.cql_config import get_config as getCQLConfig
+from experiments.configs.sac_config import get_config as getSACConfig
 from jax import nn
 from ml_collections import ConfigDict
 from serl_launcher.agents.continuous.bc import BCAgent
@@ -57,6 +58,7 @@ def make_sac_pixel_agent(
     sample_action,
     image_keys=("image",),
     encoder_type="resnet-pretrained",
+    reward_scale=1.0,
     reward_bias=0.0,
     target_entropy=None,
     discount=0.97,
@@ -68,30 +70,32 @@ def make_sac_pixel_agent(
         encoder_type=encoder_type,
         use_proprio=True,
         image_keys=image_keys,
-        policy_kwargs={
-            "tanh_squash_distribution": True,
-            "std_parameterization": "exp",
-            "std_min": 1e-5,
-            "std_max": 5,
-        },
-        critic_network_kwargs={
-            "activations": nn.tanh,
-            "use_layer_norm": True,
-            "hidden_dims": [256, 256],
-        },
-        policy_network_kwargs={
-            "activations": nn.tanh,
-            "use_layer_norm": True,
-            "hidden_dims": [256, 256],
-        },
-        temperature_init=1e-2,
-        discount=discount,
-        backup_entropy=False,
-        critic_ensemble_size=2,
-        critic_subsample_size=None,
-        reward_bias=reward_bias,
-        target_entropy=target_entropy,
-        augmentation_function=make_batch_augmentation_func(image_keys),
+        **getSACConfig(
+            updates={
+                "policy_kwargs": {
+                    "tanh_squash_distribution": True,
+                    "std_parameterization": "exp",
+                    "std_min": 1e-5,
+                    "std_max": 5,
+                },
+                "critic_network_kwargs": {
+                    "activations": nn.tanh,
+                    "use_layer_norm": True,
+                    "hidden_dims": [256, 256, 256, 256],
+                },
+                "policy_network_kwargs": {
+                    "activations": nn.tanh,
+                    "use_layer_norm": True,
+                    "hidden_dims": [256, 256, 256, 256],
+                },
+                "temperature_init": 1e-2,
+                "discount": discount,
+                "reward_bias": reward_bias,
+                "reward_scale": reward_scale,
+                "target_entropy": target_entropy,
+                "augmentation_function": make_batch_augmentation_func(image_keys),
+            },
+        ).to_dict(),
     )
     return agent
 

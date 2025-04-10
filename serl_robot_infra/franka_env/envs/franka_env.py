@@ -106,12 +106,11 @@ class FrankaEnv(gym.Env):
         self.resetpos = np.concatenate(
             [config.RESET_POSE[:3], euler_2_quat(config.RESET_POSE[3:])]
         )
-        self.last_gripper_act = time.time()
-        self.lastsent = time.time()
         self.randomreset = config.RANDOM_RESET
         self.random_xy_range = config.RANDOM_XY_RANGE
         self.random_rz_range = config.RANDOM_RZ_RANGE
         self.hz = hz
+        self.fake_env = fake_env
         self.joint_reset_cycle = (
             config.JOINT_RESET_PERIOD
         )  # reset the robot joint every 200 cycles
@@ -165,6 +164,9 @@ class FrankaEnv(gym.Env):
             return
 
         self._update_currpos()
+        self.last_gripper_act = time.time()
+        self.lastsent = time.time()
+
         self.cap = None
         self.init_cameras(config.REALSENSE_CAMERAS)
         if self.display_image:

@@ -1,3 +1,11 @@
+"""
+zhouzypaul: script to run WSRL
+modified from train_rlpd.py and instead do:
+0. load in pre-trained Q/Pi
+1. no data retention and no 50/50 sampling
+2. warmup
+"""
+
 #!/usr/bin/env python3
 
 import copy
@@ -35,15 +43,31 @@ from serl_launcher.wrappers.past_n_statistic import RecordPastNStatisticsWrapper
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string("exp_name", None, "Name of experiment corresponding to folder.")
+flags.DEFINE_string("description", "", "Wandb exp name")
 flags.DEFINE_integer("seed", 42, "Random seed.")
 flags.DEFINE_boolean("learner", False, "Whether this is a learner.")
 flags.DEFINE_boolean("actor", False, "Whether this is an actor.")
 flags.DEFINE_string("ip", "localhost", "IP address of the learner.")
-flags.DEFINE_multi_string("demo_path", None, "Path to the demo data.")
-flags.DEFINE_string("checkpoint_path", None, "Path to save checkpoints.")
+flags.DEFINE_multi_string("offline_data_path", None, "Path to the offline data.")
+flags.DEFINE_string("save_path", None, "Path to save checkpoints.")
 flags.DEFINE_integer("eval_checkpoint_step", 0, "Step to evaluate the checkpoint.")
 flags.DEFINE_integer("eval_n_trajs", 0, "Number of trajectories to evaluate.")
 flags.DEFINE_boolean("save_video", False, "Save video.")
+
+# env
+flags.DEFINE_float("reward_scale", 1.0, "Reward scale.")
+flags.DEFINE_float("reward_bias", -1.0, "Reward bias. Default to step penalty rewards.")
+
+# WSRL args
+flags.DEFINE_string(
+    "pretrained_checkpoint_path",
+    None,
+    "Path to the pre-trained offline RL agent checkpoint.",
+)
+flags.DEFINE_float(
+    "offline_data_ratio", 0, "Ratio of offline data to sample in a batch. WSRL uses 0."
+)
+flags.DEFINE_integer("warmup_period", 5000, "Number of warmup steps for WSRL.")
 
 flags.DEFINE_boolean(
     "debug", False, "Debug mode."
@@ -74,7 +98,7 @@ def actor(agent, data_store, intvn_data_store, env, sampling_rng):
         time_list = []
 
         ckpt = checkpoints.restore_checkpoint(
-            os.path.abspath(FLAGS.checkpoint_path),
+            os.path.abspath(FLAGS.save_path),
             agent.state,
             step=FLAGS.eval_checkpoint_step,
         )
@@ -111,13 +135,11 @@ def actor(agent, data_store, intvn_data_store, env, sampling_rng):
     start_step = (
         int(
             os.path.basename(
-                natsorted(
-                    glob.glob(os.path.join(FLAGS.checkpoint_path, "buffer/*.pkl"))
-                )[-1]
+                natsorted(glob.glob(os.path.join(FLAGS.save_path, "buffer/*.pkl")))[-1]
             )[12:-4]
         )
         + 1
-        if FLAGS.checkpoint_path and os.path.exists(FLAGS.checkpoint_path)
+        if FLAGS.save_path and glob.glob(os.path.join(FLAGS.save_path, "checkpoint_*"))
         else 0
     )
 
@@ -223,8 +245,8 @@ def actor(agent, data_store, intvn_data_store, env, sampling_rng):
 
         if step > 0 and config.buffer_period > 0 and step % config.buffer_period == 0:
             # dump to pickle file
-            buffer_path = os.path.join(FLAGS.checkpoint_path, "buffer")
-            demo_buffer_path = os.path.join(FLAGS.checkpoint_path, "demo_buffer")
+            buffer_path = os.path.join(FLAGS.save_path, "buffer")
+            demo_buffer_path = os.path.join(FLAGS.save_path, "demo_buffer")
             if not os.path.exists(buffer_path):
                 os.makedirs(buffer_path)
             if not os.path.exists(demo_buffer_path):
@@ -248,18 +270,18 @@ def actor(agent, data_store, intvn_data_store, env, sampling_rng):
 ##############################################################################
 
 
-def learner(rng, agent, replay_buffer, demo_buffer, wandb_logger=None):
+def learner(rng, agent, replay_buffer, offline_buffer, wandb_logger=None):
     """
     The learner loop, which runs when "--learner" is set to True.
     """
     start_step = (
         int(
             os.path.basename(
-                checkpoints.latest_checkpoint(os.path.abspath(FLAGS.checkpoint_path))
+                checkpoints.latest_checkpoint(os.path.abspath(FLAGS.save_path))
             )[11:]
         )
         + 1
-        if FLAGS.checkpoint_path and os.path.exists(FLAGS.checkpoint_path)
+        if FLAGS.save_path and glob.glob(os.path.join(FLAGS.save_path, "checkpoint_*"))
         else 0
     )
     step = start_step
@@ -275,18 +297,19 @@ def learner(rng, agent, replay_buffer, demo_buffer, wandb_logger=None):
     # Create server
     server = TrainerServer(make_trainer_config(), request_callback=stats_callback)
     server.register_data_store("actor_env", replay_buffer)
-    server.register_data_store("actor_env_intvn", demo_buffer)
+    if offline_buffer:
+        server.register_data_store("actor_env_intvn", offline_buffer)
     server.start(threaded=True)
 
-    # Loop to wait until replay_buffer is filled
+    # Loop to wait until warmup steps is filled
     pbar = tqdm.tqdm(
-        total=config.training_starts,
+        total=FLAGS.warmup_period,
         initial=len(replay_buffer),
         desc="Filling up replay buffer",
         position=0,
         leave=True,
     )
-    while len(replay_buffer) < config.training_starts:
+    while len(replay_buffer) < FLAGS.warmup_period:
         pbar.update(len(replay_buffer) - pbar.n)  # Update progress bar
         time.sleep(1)
     pbar.update(len(replay_buffer) - pbar.n)  # Update progress bar
@@ -296,21 +319,24 @@ def learner(rng, agent, replay_buffer, demo_buffer, wandb_logger=None):
     server.publish_network(agent.state.params)
     print_green("sent initial network to actor")
 
-    # 50/50 sampling from RLPD, half from demo and half from online experience
+    # sample the data from replay buffer and offline buffer
     replay_iterator = replay_buffer.get_iterator(
         sample_args={
-            "batch_size": config.batch_size // 2,
+            "batch_size": int(config.batch_size * (1 - FLAGS.offline_data_ratio)),
             "pack_obs_and_next_obs": True,
         },
         device=sharding.replicate(),
     )
-    demo_iterator = demo_buffer.get_iterator(
-        sample_args={
-            "batch_size": config.batch_size // 2,
-            "pack_obs_and_next_obs": True,
-        },
-        device=sharding.replicate(),
-    )
+    if offline_buffer and FLAGS.offline_data_ratio > 0:
+        offline_iterator = offline_buffer.get_iterator(
+            sample_args={
+                "batch_size": int(config.batch_size * FLAGS.offline_data_ratio),
+                "pack_obs_and_next_obs": True,
+            },
+            device=sharding.replicate(),
+        )
+    else:
+        offline_iterator = None
 
     # wait till the replay buffer is filled with enough data
     timer = Timer()
@@ -332,8 +358,9 @@ def learner(rng, agent, replay_buffer, demo_buffer, wandb_logger=None):
         for critic_step in range(config.cta_ratio - 1):
             with timer.context("sample_replay_buffer"):
                 batch = next(replay_iterator)
-                demo_batch = next(demo_iterator)
-                batch = concat_batches(batch, demo_batch, axis=0)
+                if offline_iterator:
+                    offline_batch = next(offline_iterator)
+                    batch = concat_batches(batch, offline_batch, axis=0)
 
             with timer.context("train_critics"):
                 agent, critics_info = agent.update(
@@ -343,8 +370,9 @@ def learner(rng, agent, replay_buffer, demo_buffer, wandb_logger=None):
 
         with timer.context("train"):
             batch = next(replay_iterator)
-            demo_batch = next(demo_iterator)
-            batch = concat_batches(batch, demo_batch, axis=0)
+            if offline_iterator:
+                offline_batch = next(offline_iterator)
+                batch = concat_batches(batch, offline_batch, axis=0)
             agent, update_info = agent.update(
                 batch,
                 networks_to_update=train_networks_to_update,
@@ -358,13 +386,9 @@ def learner(rng, agent, replay_buffer, demo_buffer, wandb_logger=None):
             wandb_logger.log(update_info, step=step)
             wandb_logger.log({"timer": timer.get_average_times()}, step=step)
 
-        if (
-            step > 0
-            and config.checkpoint_period
-            and step % config.checkpoint_period == 0
-        ):
+        if config.checkpoint_period and (step + 1) % config.checkpoint_period == 0:
             checkpoints.save_checkpoint(
-                os.path.abspath(FLAGS.checkpoint_path), agent.state, step=step, keep=100
+                os.path.abspath(FLAGS.save_path), agent.state, step=step + 1, keep=100
             )
 
 
@@ -402,6 +426,8 @@ def main(_):
             image_keys=config.image_keys,
             encoder_type=config.encoder_type,
             discount=config.discount,
+            reward_scale=FLAGS.reward_scale,
+            reward_bias=FLAGS.reward_bias,
         )
         include_grasp_penalty = False
     elif config.setup_mode == "single-arm-learned-gripper":
@@ -431,19 +457,35 @@ def main(_):
     # need the jnp.array to avoid a bug where device_put doesn't recognize primitives
     agent = jax.device_put(jax.tree_map(jnp.array, agent), sharding.replicate())
 
-    if FLAGS.checkpoint_path is not None and os.path.exists(FLAGS.checkpoint_path):
-        input("Checkpoint path already exists. Press Enter to resume training.")
+    # load from the pre-trained offline RL agent
+    assert FLAGS.pretrained_checkpoint_path is not None
+    ckpt = checkpoints.restore_checkpoint(
+        os.path.abspath(FLAGS.pretrained_checkpoint_path),
+        agent.state,
+    )
+    agent = agent.replace(state=ckpt)
+    print_green(
+        f"Loaded pre-trained checkpoint from {FLAGS.pretrained_checkpoint_path}"
+    )
+
+    # resume from a previous run
+    if (
+        FLAGS.save_path is not None
+        and os.path.exists(FLAGS.save_path)
+        and glob.glob(os.path.join(FLAGS.save_path, "checkpoint_*"))
+    ):
+        input(
+            "Checkpoint path already exists from a previous run. Press Enter to resume training."
+        )
         ckpt = checkpoints.restore_checkpoint(
-            os.path.abspath(FLAGS.checkpoint_path),
+            os.path.abspath(FLAGS.save_path),
             agent.state,
         )
         agent = agent.replace(state=ckpt)
         ckpt_number = os.path.basename(
-            checkpoints.latest_checkpoint(os.path.abspath(FLAGS.checkpoint_path))
+            checkpoints.latest_checkpoint(os.path.abspath(FLAGS.save_path))
         )[11:]
-        print_green(
-            f"Loaded previous checkpoint at step {ckpt_number}. Resuming training..."
-        )
+        print_green(f"Loaded previous checkpoint at step {ckpt_number}. Resuming ...")
 
     def create_replay_buffer_and_wandb_logger():
         replay_buffer = MemoryEfficientReplayBufferDataStore(
@@ -456,39 +498,50 @@ def main(_):
         # set up wandb and logging
         wandb_logger = make_wandb_logger(
             project="hil-serl",
-            description=FLAGS.exp_name,
+            description=f"wsrl_{FLAGS.description}_from_{FLAGS.pretrained_checkpoint_path.split('/')[-2]}",
             debug=FLAGS.debug,
+            variant={
+                **FLAGS.flag_values_dict(),
+                "agent_config": dict(**agent.config),
+            },
         )
         return replay_buffer, wandb_logger
 
     if FLAGS.learner:
         sampling_rng = jax.device_put(sampling_rng, device=sharding.replicate())
         replay_buffer, wandb_logger = create_replay_buffer_and_wandb_logger()
-        demo_buffer = MemoryEfficientReplayBufferDataStore(
-            env.observation_space,
-            env.action_space,
-            capacity=config.replay_buffer_capacity,
-            image_keys=config.image_keys,
-            include_grasp_penalty=include_grasp_penalty,
-        )
+        print_green(f"Online buffer size: {len(replay_buffer)}")
 
-        assert FLAGS.demo_path is not None
-        for path in FLAGS.demo_path:
-            with open(path, "rb") as f:
-                transitions = pkl.load(f)
-                for transition in transitions:
-                    if "infos" in transition and "grasp_penalty" in transition["infos"]:
-                        transition["grasp_penalty"] = transition["infos"][
-                            "grasp_penalty"
-                        ]
-                    demo_buffer.insert(transition)
-        print_green(f"demo buffer size: {len(demo_buffer)}")
-        print_green(f"online buffer size: {len(replay_buffer)}")
+        # create offline buffer if needed
+        offline_buffer = None
+        if FLAGS.offline_data_path is not None:
+            offline_buffer = MemoryEfficientReplayBufferDataStore(
+                env.observation_space,
+                env.action_space,
+                capacity=config.replay_buffer_capacity,
+                image_keys=config.image_keys,
+                include_grasp_penalty=include_grasp_penalty,
+            )
 
-        if FLAGS.checkpoint_path is not None and os.path.exists(
-            os.path.join(FLAGS.checkpoint_path, "buffer")
+            for path in FLAGS.offline_data_path:
+                with open(path, "rb") as f:
+                    transitions = pkl.load(f)
+                    for transition in transitions:
+                        if (
+                            "infos" in transition
+                            and "grasp_penalty" in transition["infos"]
+                        ):
+                            transition["grasp_penalty"] = transition["infos"][
+                                "grasp_penalty"
+                            ]
+                        offline_buffer.insert(transition)
+            print_green(f"Offline buffer size: {len(offline_buffer)}")
+
+        # continue from a previous WSRL run's data
+        if FLAGS.save_path is not None and os.path.exists(
+            os.path.join(FLAGS.save_path, "buffer")
         ):
-            for file in glob.glob(os.path.join(FLAGS.checkpoint_path, "buffer/*.pkl")):
+            for file in glob.glob(os.path.join(FLAGS.save_path, "buffer/*.pkl")):
                 with open(file, "rb") as f:
                     transitions = pkl.load(f)
                     for transition in transitions:
@@ -497,19 +550,19 @@ def main(_):
                 f"Loaded previous buffer data. Replay buffer size: {len(replay_buffer)}"
             )
 
-        if FLAGS.checkpoint_path is not None and os.path.exists(
-            os.path.join(FLAGS.checkpoint_path, "demo_buffer")
-        ):
-            for file in glob.glob(
-                os.path.join(FLAGS.checkpoint_path, "demo_buffer/*.pkl")
-            ):
-                with open(file, "rb") as f:
-                    transitions = pkl.load(f)
-                    for transition in transitions:
-                        demo_buffer.insert(transition)
-            print_green(
-                f"Loaded previous demo buffer data. Demo buffer size: {len(demo_buffer)}"
-            )
+        # if offline_buffer and FLAGS.save_path is not None and os.path.exists(
+        #     os.path.join(FLAGS.save_path, "demo_buffer")
+        # ):
+        #     for file in glob.glob(
+        #         os.path.join(FLAGS.save_path, "demo_buffer/*.pkl")
+        #     ):
+        #         with open(file, "rb") as f:
+        #             transitions = pkl.load(f)
+        #             for transition in transitions:
+        #                 offline_buffer.insert(transition)
+        #     print_green(
+        #         f"Loaded previous demo buffer data. Demo buffer size: {len(offline_buffer)}"
+        #     )
 
         # learner loop
         print_green("starting learner loop")
@@ -517,7 +570,7 @@ def main(_):
             sampling_rng,
             agent,
             replay_buffer,
-            demo_buffer=demo_buffer,
+            offline_buffer=offline_buffer,
             wandb_logger=wandb_logger,
         )
 
