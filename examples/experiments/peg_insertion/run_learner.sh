@@ -5,3 +5,4 @@ python train_rlpd.py "$@" \
     --checkpoint_path=logs/0403 \
     --demo_path=demo_data/peg_insertion_20_demos_2025-04-03_12-12-07.pkl \
     --learner \
+$@  # take in additional arguments

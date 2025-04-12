@@ -142,6 +142,8 @@ class TrainConfig(DefaultTrainingConfig):
     encoder_type = "resnet-pretrained"
     setup_mode = "single-arm-fixed-gripper"
     discount = 0.98
+    batch_size = 512
+    max_steps = 20000
 
     def get_environment(self, fake_env=False, save_video=False, classifier=False):
         env = PegEnv(

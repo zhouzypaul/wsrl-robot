@@ -300,7 +300,7 @@ def make_wandb_logger(
     description: str = "serl_launcher",
     debug: bool = False,
     group: str = "wsrl",
-    variant: Optional[ConfigDict] = None,
+    variant: Optional[ConfigDict] = {},
 ):
     wandb_config = WandBLogger.get_default_config()
     wandb_config.update(

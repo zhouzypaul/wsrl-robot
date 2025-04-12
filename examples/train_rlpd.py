@@ -45,8 +45,8 @@ flags.DEFINE_integer("eval_checkpoint_step", 0, "Step to evaluate the checkpoint
 flags.DEFINE_integer("eval_n_trajs", 0, "Number of trajectories to evaluate.")
 flags.DEFINE_boolean("save_video", False, "Save video.")
 flags.DEFINE_float("reward_scale", 1.0, "Reward scale")
-flags.DEFINE_float("reward_bias", 0.0, "Reward bias")
-
+flags.DEFINE_float("reward_bias", -1.0, "Reward bias")
+flags.DEFINE_string("description", None, "Wandb exp name")
 flags.DEFINE_boolean(
     "debug", False, "Debug mode."
 )  # debug mode will disable wandb logging
@@ -460,7 +460,7 @@ def main(_):
         # set up wandb and logging
         wandb_logger = make_wandb_logger(
             project="hil-serl",
-            description=FLAGS.exp_name,
+            description=FLAGS.description or FLAGS.exp_name,
             debug=FLAGS.debug,
         )
         return replay_buffer, wandb_logger
