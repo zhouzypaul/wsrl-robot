@@ -44,12 +44,12 @@ class EnvConfig(DefaultEnvConfig):
 
     TARGET_POSE = np.array(
         [
-            0.6736665618929308,
-            -0.16298729878643567,
-            0.1072667105440983,
-            3.0841551260524245,
-            0.026942660989042633,
-            1.6317823834390532,
+            0.5781350843740655,
+            -0.07251673541653851,
+            0.10484627189030093,
+            3.090419581246303,
+            0.02255417062889542,
+            1.610634991219969,
         ]
     )  # peg fully inserted
     # GRASP_POSE = np.array([0.5857508505445138,-0.22036261105675414,0.2731021902359492, np.pi, 0, 0])  # when grasping peg sitting on the holder
@@ -75,7 +75,7 @@ class EnvConfig(DefaultEnvConfig):
     )
     ABS_POSE_LIMIT_HIGH = np.array(
         [
-            TARGET_POSE[0] + 0.03,  # don't reach too far over the edge of green block
+            TARGET_POSE[0] + RANDOM_XY_RANGE,
             TARGET_POSE[1] + RANDOM_XY_RANGE,
             TARGET_POSE[2] + 0.2,
             TARGET_POSE[3] + 0.01,
@@ -94,10 +94,10 @@ class EnvConfig(DefaultEnvConfig):
         "translational_Ki": 0,
         "translational_clip_x": 0.008,
         "translational_clip_y": 0.003,
-        "translational_clip_z": 0.006,
+        "translational_clip_z": 0.004,
         "translational_clip_neg_x": 0.008,
         "translational_clip_neg_y": 0.003,
-        "translational_clip_neg_z": 0.006,
+        "translational_clip_neg_z": 0.004,
         "rotational_clip_x": 0.02,
         "rotational_clip_y": 0.02,
         "rotational_clip_z": 0.02,
