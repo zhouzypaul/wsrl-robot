@@ -250,6 +250,64 @@ def make_calql_pixel_agent(
     return agent
 
 
+def make_calql_pixel_agent_with_resnet_mlp(
+    seed,
+    sample_obs,
+    sample_action,
+    image_keys=("image",),
+    encoder_type="resnet-pretrained",
+    reward_scale=1.0,
+    reward_bias=0.0,
+    target_entropy=0.0,
+    discount=0.98,
+    is_calql=True,
+):
+    agentType = CalQLAgent if is_calql else CQLAgent
+
+    # Get base config first
+    config = getCQLConfig(
+        updates={
+            "temperature_init": 1e-2,
+            "discount": discount,
+            "reward_bias": reward_bias,
+            "reward_scale": reward_scale,
+            "target_entropy": target_entropy,
+            "augmentation_function": make_batch_augmentation_func(image_keys),
+            # Override the network kwargs in config
+            "critic_network_kwargs": {
+                "num_blocks": 2,
+                "out_dim": 256,
+                "activations": nn.tanh,
+                "use_layer_norm": True,
+            },
+            "policy_network_kwargs": {
+                "num_blocks": 2,
+                "out_dim": 256,
+                "activations": nn.tanh,
+                "use_layer_norm": True,
+            },
+            "policy_kwargs": {
+                "tanh_squash_distribution": True,
+                "std_parameterization": "exp",
+                "std_min": 1e-5,
+                "std_max": 5,
+            },
+        },
+    ).to_dict()
+
+    agent = agentType.create(
+        jax.random.PRNGKey(seed),
+        sample_obs,
+        sample_action,
+        encoder_type=encoder_type,
+        use_proprio=True,
+        image_keys=image_keys,
+        network_type="mlp_resnet",
+        **config,
+    )
+    return agent
+
+
 def linear_schedule(step):
     init_value = 10.0
     end_value = 50.0

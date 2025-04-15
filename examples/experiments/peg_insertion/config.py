@@ -75,7 +75,7 @@ class EnvConfig(DefaultEnvConfig):
     )
     ABS_POSE_LIMIT_HIGH = np.array(
         [
-            TARGET_POSE[0] + RANDOM_XY_RANGE,
+            TARGET_POSE[0] + 0.03,  # don't reach too far over the edge of green block
             TARGET_POSE[1] + RANDOM_XY_RANGE,
             TARGET_POSE[2] + 0.2,
             TARGET_POSE[3] + 0.01,

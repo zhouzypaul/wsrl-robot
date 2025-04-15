@@ -17,7 +17,7 @@ from serl_launcher.common.optimizers import make_optimizer
 from serl_launcher.common.typing import Batch, Data, Params, PRNGKey
 from serl_launcher.networks.actor_critic_nets import Critic, Policy, ensemblize
 from serl_launcher.networks.lagrange import GeqLagrangeMultiplier, LeqLagrangeMultiplier
-from serl_launcher.networks.mlp import MLP
+from serl_launcher.networks.mlp import MLP, MLPResNet
 from serl_launcher.utils.train_utils import _unpack
 
 
@@ -399,23 +399,14 @@ class CQLAgent(SACAgent):
         observations: Data,
         actions: jnp.ndarray,
         # Model architecture
-        critic_network_kwargs: dict = {
-            "hidden_dims": [256, 256],
-            "activate_final": True,
-        },
-        policy_network_kwargs: dict = {
-            "hidden_dims": [256, 256],
-            "activate_final": True,
-        },
-        policy_kwargs: dict = {
-            "tanh_squash_distribution": True,
-            "std_parameterization": "exp",  # TODO: checl
-        },
+        network_type: str = "mlp",
         encoder_type: str = "resnet-pretrained",
         image_keys: Iterable[str] = ("image",),
         use_proprio: bool = False,
         **kwargs,
     ):
+        assert network_type in ("mlp", "mlp_resnet")
+
         # update algorithm config
         config = ConfigDict(kwargs)
         config["image_keys"] = image_keys
@@ -468,15 +459,16 @@ class CQLAgent(SACAgent):
         }
 
         # Define networks
+        network_class = MLPResNet if network_type == "mlp_resnet" else MLP
         policy_def = Policy(
             encoder=encoders["actor"],
-            network=MLP(**policy_network_kwargs),
+            network=network_class(**config.policy_network_kwargs),
             action_dim=actions.shape[-1],
-            **policy_kwargs,
+            **config.policy_kwargs,
             name="actor",
         )
 
-        critic_backbone = partial(MLP, **critic_network_kwargs)
+        critic_backbone = partial(network_class, **config.critic_network_kwargs)
         critic_backbone = ensemblize(critic_backbone, config.critic_ensemble_size)(
             name="critic_ensemble"
         )

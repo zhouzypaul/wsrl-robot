@@ -35,7 +35,7 @@ class MLPResNetBlock(nn.Module):
     features: int
     act: Callable
     dropout_rate: float = None
-    use_layer_norm: bool = False
+    use_layer_norm: bool = True
 
     @nn.compact
     def __call__(self, x, train: bool = False):
@@ -58,7 +58,7 @@ class MLPResNet(nn.Module):
     num_blocks: int
     out_dim: int
     dropout_rate: float = None
-    use_layer_norm: bool = False
+    use_layer_norm: bool = True
     hidden_dim: int = 256
     activations: Callable = nn.swish
 

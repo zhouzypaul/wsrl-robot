@@ -18,14 +18,12 @@ def get_config(updates=None):
         {
             "activations": nn.tanh,
             "use_layer_norm": True,
-            "hidden_dims": [256, 256, 256, 256],
         }
     )
     config.policy_network_kwargs = ConfigDict(
         {
             "activations": nn.tanh,
             "use_layer_norm": True,
-            "hidden_dims": [256, 256, 256, 256],
         }
     )
     config.policy_kwargs = ConfigDict(

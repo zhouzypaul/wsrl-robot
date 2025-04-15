@@ -18,7 +18,11 @@ from gymnasium.wrappers.record_episode_statistics import RecordEpisodeStatistics
 from serl_launcher.agents.continuous.calql import CalQLAgent
 from serl_launcher.agents.continuous.cql import CQLAgent
 from serl_launcher.data.data_store import MemoryEfficientReplayBufferDataStore
-from serl_launcher.utils.launcher import make_calql_pixel_agent, make_wandb_logger
+from serl_launcher.utils.launcher import (
+    make_calql_pixel_agent,
+    make_calql_pixel_agent_with_resnet_mlp,
+    make_wandb_logger,
+)
 
 FLAGS = flags.FLAGS
 
@@ -40,7 +44,7 @@ flags.DEFINE_bool("save_video", False, "Save video of the evaluation.")
 flags.DEFINE_string("data_path", None, "Path to the demo data.")
 flags.DEFINE_bool("use_calql", True, "Use CalQL instead of CQL.")
 flags.DEFINE_float("reward_scale", 1.0, "Reward scale")
-flags.DEFINE_float("reward_bias", 0.0, "Reward bias")
+flags.DEFINE_float("reward_bias", -1.0, "Reward bias")
 
 
 flags.DEFINE_boolean(
@@ -155,7 +159,7 @@ def main(_):
     )
     env = RecordEpisodeStatistics(env)
 
-    calql_agent: Union[CalQLAgent, CQLAgent] = make_calql_pixel_agent(
+    calql_agent: Union[CalQLAgent, CQLAgent] = make_calql_pixel_agent_with_resnet_mlp(
         seed=FLAGS.seed,
         sample_obs=env.observation_space.sample(),
         sample_action=env.action_space.sample(),

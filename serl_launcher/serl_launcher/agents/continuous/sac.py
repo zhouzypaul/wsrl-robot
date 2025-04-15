@@ -13,7 +13,7 @@ from serl_launcher.common.optimizers import make_optimizer
 from serl_launcher.common.typing import Batch, Data, Params, PRNGKey
 from serl_launcher.networks.actor_critic_nets import Critic, Policy, ensemblize
 from serl_launcher.networks.lagrange import GeqLagrangeMultiplier
-from serl_launcher.networks.mlp import MLP
+from serl_launcher.networks.mlp import MLP, MLPResNet
 from serl_launcher.utils.train_utils import _unpack
 
 
@@ -519,21 +519,8 @@ class SACAgent(flax.struct.PyTreeNode):
         actions: jnp.ndarray,
         # Model architecture
         encoder_type: str = "resnet-pretrained",
+        network_type: str = "mlp",
         use_proprio: bool = False,
-        critic_network_kwargs: dict = {
-            "hidden_dims": [256, 256],
-            "activate_final": True,
-        },
-        policy_network_kwargs: dict = {
-            "hidden_dims": [256, 256],
-            "activate_final": True,
-        },
-        policy_kwargs: dict = {
-            "tanh_squash_distribution": True,
-            "std_parameterization": "uniform",
-        },
-        critic_ensemble_size: int = 2,
-        critic_subsample_size: Optional[int] = None,
         temperature_init: float = 1.0,
         image_keys: Iterable[str] = ("image",),
         augmentation_function: Optional[callable] = None,
@@ -542,6 +529,7 @@ class SACAgent(flax.struct.PyTreeNode):
         """
         Create a new pixel-based agent, with no encoders.
         """
+        assert network_type in ("mlp", "mlp_resnet")
 
         if encoder_type == "resnet":
             from serl_launcher.vision.resnet_v1 import resnetv1_configs
@@ -591,19 +579,21 @@ class SACAgent(flax.struct.PyTreeNode):
         }
 
         # Define networks
-        critic_backbone = partial(MLP, **critic_network_kwargs)
-        critic_backbone = ensemblize(critic_backbone, critic_ensemble_size)(
+        network_class = MLPResNet if network_type == "mlp_resnet" else MLP
+        critic_backbone = partial(network_class, **config.critic_network_kwargs)
+        critic_backbone = ensemblize(critic_backbone, config.critic_ensemble_size)(
             name="critic_ensemble"
         )
         critic_def = partial(
             Critic, encoder=encoders["critic"], network=critic_backbone
         )(name="critic")
 
+        policy_backbone = partial(network_class, **config.policy_network_kwargs)
         policy_def = Policy(
             encoder=encoders["actor"],
-            network=MLP(**policy_network_kwargs),
+            network=policy_backbone,
             action_dim=actions.shape[-1],
-            **policy_kwargs,
+            **config.policy_kwargs,
             name="actor",
         )
 
@@ -621,8 +611,8 @@ class SACAgent(flax.struct.PyTreeNode):
             actor_def=policy_def,
             critic_def=critic_def,
             temperature_def=temperature_def,
-            critic_ensemble_size=critic_ensemble_size,
-            critic_subsample_size=critic_subsample_size,
+            critic_ensemble_size=config.critic_ensemble_size,
+            critic_subsample_size=config.critic_subsample_size,
             image_keys=image_keys,
             augmentation_function=augmentation_function,
             **kwargs,
