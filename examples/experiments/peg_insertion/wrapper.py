@@ -47,10 +47,22 @@ class PegEnv(FrankaEnv):
             time.sleep(0.5)
 
         # perform Cartesian reset
-        if self.randomreset:  # randomize reset position in xy plane
+        if self.deterministic_reset:
+            reset_pose = self.reset_positions[self.reset_idx]
+            print(f"Resetting to position {self.reset_idx}, {reset_pose}")
+            # Convert Euler angles to quaternions
+            reset_pose_quat = np.concatenate(
+                [reset_pose[:3], euler_2_quat(reset_pose[3:])]
+            )
+            self._send_pos_command(reset_pose_quat)
+            self.reset_idx = (self.reset_idx + 1) % len(self.reset_positions)
+        elif self.randomreset:  # randomize reset position in xy plane
             reset_pose = self.resetpos.copy()
-            reset_pose[:2] += np.random.uniform(
-                -self.random_xy_range, self.random_xy_range, (2,)
+            reset_pose[:2] += np.array(
+                [
+                    np.random.uniform(-self.random_x_range[0], self.random_x_range[1]),
+                    np.random.uniform(-self.random_y_range[0], self.random_y_range[1]),
+                ]
             )
             euler_random = self._RESET_POSE[3:].copy()
             euler_random[-1] += np.random.uniform(

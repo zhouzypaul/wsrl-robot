@@ -63,6 +63,8 @@ class DefaultEnvConfig:
     RESET_POSE = np.zeros((6,))
     RANDOM_RESET = False
     RANDOM_XY_RANGE = (0.0,)
+    RANDOM_X_RANGE = (0.0, 0.0)
+    RANDOM_Y_RANGE = (0.0, 0.0)
     RANDOM_RZ_RANGE = (0.0,)
     ABS_POSE_LIMIT_HIGH = np.zeros((6,))
     ABS_POSE_LIMIT_LOW = np.zeros((6,))
@@ -78,6 +80,8 @@ class DefaultEnvConfig:
     GRIPPER_SLEEP: float = 0.6
     MAX_EPISODE_LENGTH: int = 100
     JOINT_RESET_PERIOD: int = 0
+    DETERMINISTIC_RESET: bool = False
+    RESET_POSITIONS: list[np.ndarray] = []
 
 
 ##############################################################################
@@ -108,7 +112,12 @@ class FrankaEnv(gym.Env):
         )
         self.randomreset = config.RANDOM_RESET
         self.random_xy_range = config.RANDOM_XY_RANGE
+        self.random_x_range = config.RANDOM_X_RANGE
+        self.random_y_range = config.RANDOM_Y_RANGE
         self.random_rz_range = config.RANDOM_RZ_RANGE
+        self.deterministic_reset = config.DETERMINISTIC_RESET
+        self.reset_idx = 0
+        self.reset_positions = config.RESET_POSITIONS
         self.hz = hz
         self.fake_env = fake_env
         self.joint_reset_cycle = (
