@@ -45,6 +45,7 @@ flags.DEFINE_string("data_path", None, "Path to the demo data.")
 flags.DEFINE_bool("use_calql", True, "Use CalQL instead of CQL.")
 flags.DEFINE_float("reward_scale", 1.0, "Reward scale")
 flags.DEFINE_float("reward_bias", -1.0, "Reward bias")
+flags.DEFINE_bool("use_resnet_mlp", False, "Use resnet mlp.")
 
 
 flags.DEFINE_boolean(
@@ -159,7 +160,8 @@ def main(_):
     )
     env = RecordEpisodeStatistics(env)
 
-    calql_agent: Union[CalQLAgent, CQLAgent] = make_calql_pixel_agent_with_resnet_mlp(
+    agenttype = make_calql_pixel_agent_with_resnet_mlp if FLAGS.use_resnet_mlp else make_calql_pixel_agent
+    calql_agent: Union[CalQLAgent, CQLAgent] = agenttype(
         seed=FLAGS.seed,
         sample_obs=env.observation_space.sample(),
         sample_action=env.action_space.sample(),

@@ -33,6 +33,7 @@ from serl_launcher.utils.launcher import (
     make_sac_pixel_agent,
     make_sac_pixel_agent_hybrid_dual_arm,
     make_sac_pixel_agent_hybrid_single_arm,
+    make_sac_pixel_agent_with_resnet_mlp,
     make_trainer_config,
     make_wandb_logger,
 )
@@ -53,6 +54,7 @@ flags.DEFINE_string("save_path", None, "Path to save checkpoints.")
 flags.DEFINE_integer("eval_checkpoint_step", 0, "Step to evaluate the checkpoint.")
 flags.DEFINE_integer("eval_n_trajs", 0, "Number of trajectories to evaluate.")
 flags.DEFINE_boolean("save_video", False, "Save video.")
+flags.DEFINE_boolean("use_resnet_mlp", False, "Use resnet mlp.")
 
 # env
 flags.DEFINE_float("reward_scale", 1.0, "Reward scale.")
@@ -419,7 +421,8 @@ def main(_):
         config.setup_mode == "single-arm-fixed-gripper"
         or config.setup_mode == "dual-arm-fixed-gripper"
     ):
-        agent: SACAgent = make_sac_pixel_agent(
+        agenttype = make_sac_pixel_agent_with_resnet_mlp if FLAGS.use_resnet_mlp else make_sac_pixel_agent
+        agent: SACAgent = agenttype(
             seed=FLAGS.seed,
             sample_obs=env.observation_space.sample(),
             sample_action=env.action_space.sample(),
