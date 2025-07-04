@@ -25,6 +25,7 @@ from serl_launcher.utils.launcher import (
     make_sac_pixel_agent,
     make_sac_pixel_agent_hybrid_dual_arm,
     make_sac_pixel_agent_hybrid_single_arm,
+    make_sac_pixel_agent_with_resnet_mlp,
     make_trainer_config,
     make_wandb_logger,
 )
@@ -39,13 +40,14 @@ flags.DEFINE_integer("seed", 42, "Random seed.")
 flags.DEFINE_boolean("learner", False, "Whether this is a learner.")
 flags.DEFINE_boolean("actor", False, "Whether this is an actor.")
 flags.DEFINE_string("ip", "localhost", "IP address of the learner.")
-flags.DEFINE_multi_string("demo_path", None, "Path to the demo data.")
+flags.DEFINE_string("demo_path", None, "Path to the demo data.")
 flags.DEFINE_string("checkpoint_path", None, "Path to save checkpoints.")
 flags.DEFINE_integer("eval_checkpoint_step", 0, "Step to evaluate the checkpoint.")
 flags.DEFINE_integer("eval_n_trajs", 0, "Number of trajectories to evaluate.")
 flags.DEFINE_boolean("save_video", False, "Save video.")
 flags.DEFINE_float("reward_scale", 1.0, "Reward scale")
 flags.DEFINE_float("reward_bias", -1.0, "Reward bias")
+flags.DEFINE_boolean("use_resnet_mlp", False, "Use resnet mlp.")
 flags.DEFINE_string("description", None, "Wandb exp name")
 flags.DEFINE_boolean(
     "debug", False, "Debug mode."
@@ -383,6 +385,7 @@ def main(_):
     rng, sampling_rng = jax.random.split(rng)
 
     assert FLAGS.exp_name in CONFIG_MAPPING, "Experiment folder not found."
+    eval_mode = FLAGS.eval_n_trajs > 0
     env = config.get_environment(
         fake_env=FLAGS.learner,
         save_video=FLAGS.save_video,
@@ -397,7 +400,12 @@ def main(_):
         config.setup_mode == "single-arm-fixed-gripper"
         or config.setup_mode == "dual-arm-fixed-gripper"
     ):
-        agent: SACAgent = make_sac_pixel_agent(
+        agenttype = (
+            make_sac_pixel_agent_with_resnet_mlp
+            if FLAGS.use_resnet_mlp
+            else make_sac_pixel_agent
+        )
+        agent: SACAgent = agenttype(
             seed=FLAGS.seed,
             sample_obs=env.observation_space.sample(),
             sample_action=env.action_space.sample(),
@@ -435,7 +443,11 @@ def main(_):
     # need the jnp.array to avoid a bug where device_put doesn't recognize primitives
     agent = jax.device_put(jax.tree_map(jnp.array, agent), sharding.replicate())
 
-    if FLAGS.checkpoint_path is not None and os.path.exists(FLAGS.checkpoint_path):
+    if (
+        not eval_mode
+        and FLAGS.checkpoint_path is not None
+        and os.path.exists(FLAGS.checkpoint_path)
+    ):
         input("Checkpoint path already exists. Press Enter to resume training.")
         ckpt = checkpoints.restore_checkpoint(
             os.path.abspath(FLAGS.checkpoint_path),
@@ -462,6 +474,10 @@ def main(_):
             project="hil-serl",
             description=FLAGS.description or FLAGS.exp_name,
             debug=FLAGS.debug,
+            variant={
+                **FLAGS.flag_values_dict(),
+                "agent_config": dict(**agent.config),
+            },
         )
         return replay_buffer, wandb_logger
 
@@ -477,8 +493,10 @@ def main(_):
         )
 
         assert FLAGS.demo_path is not None
-        for path in FLAGS.demo_path:
+
+        def process_demo_file(path):
             with open(path, "rb") as f:
+                print_green(f"Loading {path}")
                 transitions = pkl.load(f)
                 for transition in transitions:
                     if "infos" in transition and "grasp_penalty" in transition["infos"]:
@@ -486,6 +504,14 @@ def main(_):
                             "grasp_penalty"
                         ]
                     demo_buffer.insert(transition)
+
+        if os.path.isdir(FLAGS.demo_path):
+            for path in glob.glob(os.path.join(FLAGS.demo_path, "*.pkl")):
+                process_demo_file(path)
+        else:
+            for path in FLAGS.demo_path:
+                process_demo_file(path)
+
         print_green(f"demo buffer size: {len(demo_buffer)}")
         print_green(f"online buffer size: {len(replay_buffer)}")
 

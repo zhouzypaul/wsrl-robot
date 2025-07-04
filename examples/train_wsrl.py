@@ -88,51 +88,51 @@ def print_green(x):
 ##############################################################################
 
 
+def eval(agent, env, sampling_rng, eval_checkpoint_step):
+    print_green("Eval loop with checkpoint at step {}".format(eval_checkpoint_step))
+    success_counter = 0
+    time_list = []
+
+    ckpt = checkpoints.restore_checkpoint(
+        os.path.abspath(FLAGS.save_path),
+        agent.state,
+        step=eval_checkpoint_step,
+    )
+    agent = agent.replace(state=ckpt)
+
+    for episode in range(FLAGS.eval_n_trajs):
+        obs, _ = env.reset()  # random reset
+        done = False
+        start_time = time.time()
+        while not done:
+            sampling_rng, key = jax.random.split(sampling_rng)
+            actions = agent.sample_actions(
+                observations=jax.device_put(obs), argmax=False, seed=key
+            )
+            actions = np.asarray(jax.device_get(actions))
+
+            next_obs, reward, done, truncated, info = env.step(actions)
+            obs = next_obs
+
+            if done:
+                if reward:
+                    dt = time.time() - start_time
+                    time_list.append(dt)
+                    print(dt)
+
+                success_counter += reward
+                print(reward)
+                print(f"{success_counter}/{episode + 1}")
+
+    print(f"success rate: {success_counter / FLAGS.eval_n_trajs}")
+    print(f"average time: {np.mean(time_list)}")
+    return  # after done eval, return and exit
+
+
 def actor(agent, data_store, intvn_data_store, env, sampling_rng):
     """
     This is the actor loop, which runs when "--actor" is set to True.
     """
-    if FLAGS.eval_checkpoint_step:
-        print_green(
-            "Eval loop with checkpoint at step {}".format(FLAGS.eval_checkpoint_step)
-        )
-        success_counter = 0
-        time_list = []
-
-        ckpt = checkpoints.restore_checkpoint(
-            os.path.abspath(FLAGS.save_path),
-            agent.state,
-            step=FLAGS.eval_checkpoint_step,
-        )
-        agent = agent.replace(state=ckpt)
-
-        for episode in range(FLAGS.eval_n_trajs):
-            obs, _ = env.reset()
-            done = False
-            start_time = time.time()
-            while not done:
-                sampling_rng, key = jax.random.split(sampling_rng)
-                actions = agent.sample_actions(
-                    observations=jax.device_put(obs), argmax=False, seed=key
-                )
-                actions = np.asarray(jax.device_get(actions))
-
-                next_obs, reward, done, truncated, info = env.step(actions)
-                obs = next_obs
-
-                if done:
-                    if reward:
-                        dt = time.time() - start_time
-                        time_list.append(dt)
-                        print(dt)
-
-                    success_counter += reward
-                    print(reward)
-                    print(f"{success_counter}/{episode + 1}")
-
-        print(f"success rate: {success_counter / FLAGS.eval_n_trajs}")
-        print(f"average time: {np.mean(time_list)}")
-        return  # after done eval, return and exit
 
     start_step = (
         int(
@@ -179,7 +179,9 @@ def actor(agent, data_store, intvn_data_store, env, sampling_rng):
     intervention_count = 0
     intervention_steps = 0
 
-    pbar = tqdm.tqdm(range(start_step, config.max_steps), dynamic_ncols=True)
+    pbar = tqdm.tqdm(
+        range(start_step, config.max_steps + FLAGS.warmup_period), dynamic_ncols=True
+    )
     for step in pbar:
         timer.tick("total")
 
@@ -421,7 +423,11 @@ def main(_):
         config.setup_mode == "single-arm-fixed-gripper"
         or config.setup_mode == "dual-arm-fixed-gripper"
     ):
-        agenttype = make_sac_pixel_agent_with_resnet_mlp if FLAGS.use_resnet_mlp else make_sac_pixel_agent
+        agenttype = (
+            make_sac_pixel_agent_with_resnet_mlp
+            if FLAGS.use_resnet_mlp
+            else make_sac_pixel_agent
+        )
         agent: SACAgent = agenttype(
             seed=FLAGS.seed,
             sample_obs=env.observation_space.sample(),
@@ -459,6 +465,11 @@ def main(_):
     # replicate agent across devices
     # need the jnp.array to avoid a bug where device_put doesn't recognize primitives
     agent = jax.device_put(jax.tree_map(jnp.array, agent), sharding.replicate())
+
+    if FLAGS.eval_checkpoint_step != 0:
+        # eval wsrl agent
+        eval(agent, env, sampling_rng, FLAGS.eval_checkpoint_step)
+        return
 
     # load from the pre-trained offline RL agent
     assert FLAGS.pretrained_checkpoint_path is not None
