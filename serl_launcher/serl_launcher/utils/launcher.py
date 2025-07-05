@@ -99,6 +99,7 @@ def make_sac_pixel_agent(
     )
     return agent
 
+
 def make_sac_pixel_agent_with_resnet_mlp(
     seed,
     sample_obs,
@@ -259,7 +260,7 @@ def make_calql_pixel_agent(
     reward_scale=1.0,
     reward_bias=0.0,
     target_entropy=0.0,
-    discount=0.97,
+    discount=0.98,
     is_calql=True,
 ):
     agentType = CalQLAgent if is_calql else CQLAgent

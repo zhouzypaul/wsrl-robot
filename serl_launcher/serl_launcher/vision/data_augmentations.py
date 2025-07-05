@@ -198,113 +198,6 @@ def adjust_hue(h, s, v, delta):
     return (h + delta) % 1.0, s, v
 
 
-def _random_brightness(rgb_tuple, rng, max_delta):
-    delta = jax.random.uniform(rng, shape=(), minval=-max_delta, maxval=max_delta)
-    return adjust_brightness(rgb_tuple, delta)
-
-
-def _random_contrast(rgb_tuple, rng, max_delta):
-    factor = jax.random.uniform(
-        rng, shape=(), minval=1 - max_delta, maxval=1 + max_delta
-    )
-    return adjust_contrast(rgb_tuple, factor)
-
-
-def _random_saturation(rgb_tuple, rng, max_delta):
-    h, s, v = rgb_to_hsv(*rgb_tuple)
-    factor = jax.random.uniform(
-        rng, shape=(), minval=1 - max_delta, maxval=1 + max_delta
-    )
-    return hsv_to_rgb(*adjust_saturation(h, s, v, factor))
-
-
-def _random_hue(rgb_tuple, rng, max_delta):
-    h, s, v = rgb_to_hsv(*rgb_tuple)
-    delta = jax.random.uniform(rng, shape=(), minval=-max_delta, maxval=max_delta)
-    return hsv_to_rgb(*adjust_hue(h, s, v, delta))
-
-
-def _to_grayscale(image):
-    rgb_weights = jnp.array([0.2989, 0.5870, 0.1140])
-    grayscale = jnp.tensordot(image, rgb_weights, axes=(-1, -1))[..., jnp.newaxis]
-    return jnp.tile(grayscale, (1, 1, 3))  # Back to 3 channels.
-
-
-def color_transform(
-    image,
-    rng,
-    *,
-    brightness,
-    contrast,
-    saturation,
-    hue,
-    to_grayscale_prob,
-    color_jitter_prob,
-    apply_prob,
-    shuffle
-):
-    """Applies color jittering to a single image."""
-    apply_rng, transform_rng = jax.random.split(rng)
-    perm_rng, b_rng, c_rng, s_rng, h_rng, cj_rng, gs_rng = jax.random.split(
-        transform_rng, 7
-    )
-
-    # Whether the transform should be applied at all.
-    should_apply = jax.random.uniform(apply_rng, shape=()) <= apply_prob
-    # Whether to apply grayscale transform.
-    should_apply_gs = jax.random.uniform(gs_rng, shape=()) <= to_grayscale_prob
-    # Whether to apply color jittering.
-    should_apply_color = jax.random.uniform(cj_rng, shape=()) <= color_jitter_prob
-
-    # Decorator to conditionally apply fn based on an index.
-    def _make_cond(fn, idx):
-        def identity_fn(x, unused_rng, unused_param):
-            return x
-
-        def cond_fn(args, i):
-            def clip(args):
-                return jax.tree_map(lambda arg: jnp.clip(arg, 0.0, 1.0), args)
-
-            out = jax.lax.cond(
-                should_apply & should_apply_color & (i == idx),
-                args,
-                lambda a: clip(fn(*a)),
-                args,
-                lambda a: identity_fn(*a),
-            )
-            return jax.lax.stop_gradient(out)
-
-        return cond_fn
-
-    random_brightness_cond = _make_cond(_random_brightness, idx=0)
-    random_contrast_cond = _make_cond(_random_contrast, idx=1)
-    random_saturation_cond = _make_cond(_random_saturation, idx=2)
-    random_hue_cond = _make_cond(_random_hue, idx=3)
-
-    def _color_jitter(x):
-        rgb_tuple = tuple(jax.tree_map(jnp.squeeze, jnp.split(x, 3, axis=-1)))
-        if shuffle:
-            order = jax.random.permutation(perm_rng, jnp.arange(4, dtype=jnp.int32))
-        else:
-            order = range(4)
-        for idx in order:
-            if brightness > 0:
-                rgb_tuple = random_brightness_cond((rgb_tuple, b_rng, brightness), idx)
-            if contrast > 0:
-                rgb_tuple = random_contrast_cond((rgb_tuple, c_rng, contrast), idx)
-            if saturation > 0:
-                rgb_tuple = random_saturation_cond((rgb_tuple, s_rng, saturation), idx)
-            if hue > 0:
-                rgb_tuple = random_hue_cond((rgb_tuple, h_rng, hue), idx)
-        return jnp.stack(rgb_tuple, axis=-1)
-
-    out_apply = _color_jitter(image)
-    out_apply = jax.lax.cond(
-        should_apply & should_apply_gs, out_apply, _to_grayscale, out_apply, lambda x: x
-    )
-    return jnp.clip(out_apply, 0.0, 1.0)
-
-
 def random_flip(image, rng):
     _, flip_rng = jax.random.split(rng)
     should_flip_lr = jax.random.uniform(flip_rng, shape=()) <= 0.5
@@ -326,7 +219,7 @@ def gaussian_blur(
     Returns:
         A NHWC tensor of the blurred images.
     """
-    kernel_size = image.shape[0] / blur_divider
+    kernel_size = image.shape[1] / blur_divider
     blur_fn = partial(
         _random_gaussian_blur,
         kernel_size=kernel_size,

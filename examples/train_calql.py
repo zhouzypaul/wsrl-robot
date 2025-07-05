@@ -77,7 +77,6 @@ def eval(
     """
     This is the actor loop, which runs when "--actor" is set to True.
     """
-    # TODO: ignore for now
     success_counter = 0
     time_list = []
     for episode in range(FLAGS.eval_n_trajs):
@@ -160,7 +159,11 @@ def main(_):
     )
     env = RecordEpisodeStatistics(env)
 
-    agenttype = make_calql_pixel_agent_with_resnet_mlp if FLAGS.use_resnet_mlp else make_calql_pixel_agent
+    agenttype = (
+        make_calql_pixel_agent_with_resnet_mlp
+        if FLAGS.use_resnet_mlp
+        else make_calql_pixel_agent
+    )
     calql_agent: Union[CalQLAgent, CQLAgent] = agenttype(
         seed=FLAGS.seed,
         sample_obs=env.observation_space.sample(),
