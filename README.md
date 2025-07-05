@@ -12,6 +12,10 @@ See [Installation](#installation) and follow the steps to set up your environmen
 
 1. **Setup**
 
+    ```
+    cd examples
+    ```
+
     Train the reward classifier and collect 20 expert demos. For the reward classifier we define anything from a half-insert to a full insert as success and collect many near-inserts as failures for robustness.
 
     ```
