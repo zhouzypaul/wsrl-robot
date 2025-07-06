@@ -1,3 +1,72 @@
+# WSRL: Efficient Online Reinforcement Learning Fine-Tuning Need Not Retain Offline Data
+
+This project is built on top of HIL-SERL. See their README below for more details.
+
+## Installation
+See [Installation](#installation) and follow the steps to set up your environment
+
+## File Structure
+
+ The SERL, CalQL, and WSRL training files are in `/examples`.`examples/experiments/peg_insertion/config.py` contains our reset poses and training hyperparameters. See their [code structure](#overview-and-code-structure) for more details.
+## Running WSRL on Franka Peg Insertion
+
+1. **Setup**
+
+    ```
+    cd examples
+    ```
+
+    Train the reward classifier and collect 20 expert demos. For the reward classifier we define anything from a half-insert to a full insert as success and collect many near-inserts as failures for robustness.
+
+    ```
+    python train_reward_classifier.py --exp_name peg_insertion
+    ```
+
+    ```
+    python record_demos.py --exp_name peg_insertion --successes_needed 20
+    ```
+    Follow the [franka_walkthrough](./docs/franka_walkthrough.md) RAM insertion steps for more info. Note that our exp_name is peg_insertion and our corresponding files are in `examples/experiments/peg_insertion`
+
+2. **Collecting Offline Data**
+
+    Use SERL or HIL-SERL to collect a dataset of robot transitions. We find that giving ~10 interventions near the start of training works best for a dataset of ~20k transitions.
+
+    Note to include your expert demo path in `experiments/peg_insertion/run_actor.sh` first.
+
+    ```
+    sh experiments/peg_insertion/run_actor.sh --checkpoint_path [logs/offline_data_path]--description [hil_serl_data_collection]--use_resnet_mlp
+    ```
+    ```
+    sh experiments/peg_insertion/run_learner.sh --checkpoint_path [logs/offline_data_path] --description [hil_serl_data_collection]--use_resnet_mlp
+    ```
+
+3. **Training offline Calql**
+
+    Run this script to train offline CalQL and save checkpoints to `calql_checkpoint_path` using your offline dataset from `offline_data_path`. We found that training for ~200k steps converges and achieves 13/20 performance on our evals.
+    ```
+    bash experiments/peg_insertion/run_calql_pretrain.sh --calql_checkpoint_path [logs/calql_checkpoint_path] --data_path [logs/offline_data_path/buffer] --use_resnet_mlp
+    ```
+    Use the `--eval_n_trajs` flag to evaluate your CalQL checkpoint.
+    ```
+    bash experiments/peg_insertion/run_calql_pretrain.sh --calql_checkpoint_path [logs/calql_checkpoint_path] --eval_n_trajs 20 --use_resnet_mlp
+    ```
+
+4. **Running WSRL online**
+
+    Initialize WSRL with your pretrained CalQL checkpoint, and run the training script.
+    ```
+    sh experiments/peg_insertion/run_wsrl_actor.sh --save_path [logs/wsrl_save_path] --description [wsrl_run]--use_resnet_mlp
+    ```
+    ```
+    sh experiments/peg_insertion/run_wsrl_learner.sh --save_path [logs/wsrl_save_path] --description [wsrl_run]--use_resnet_mlp
+    ```
+
+    Evaluate your WSRL checkpoint
+    ```
+    sh experiments/peg_insertion/run_wsrl_eval.sh --use_resnet_mlp
+    ```
+
+
 # HIL-SERL: Precise and Dexterous Robotic Manipulation via Human-in-the-Loop Reinforcement Learning
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -83,9 +152,9 @@ We provide a step-by-step guide to run RL policies with HIL-SERL on a Franka rob
 
 Check out the [Run with Franka Arm](/docs/franka_walkthrough.md)
  - [RAM Insertion](/docs/franka_walkthrough.md#1-ram-insertion)
- - [USB Pickup and Insertion](/docs/real_franka.md#2-usb-pick-up-and-insertion)
- - [Object Handover](/docs/real_franka.md#3-object-handover)
- - [Egg Flip](/docs/real_franka.md#4-egg-flip)
+ - [USB Pickup and Insertion](/docs/franka_walkthrough.md#2-usb-pick-up-and-insertion)
+ - [Object Handover](/docs/franka_walkthrough.md#3-object-handover)
+ - [Egg Flip](/docs/franka_walkthrough.md#4-egg-flip)
 
 <!-- ## Contribution
 

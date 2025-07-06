@@ -1,6 +1,6 @@
 # SERL data
-examples/classifier_ckpt/
-examples/classifier_data/
+examples/classifier_ckpt*/
+examples/classifier_data*/
 examples/demo_data/
 examples/experiments/*/logs/*
 examples/logs/*

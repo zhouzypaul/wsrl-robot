@@ -5,6 +5,7 @@ from collections import defaultdict
 import imageio
 import jax
 import jax.numpy as jnp
+import jax.sharding as sharding
 import matplotlib.pyplot as plt
 import numpy as np
 import requests
@@ -12,6 +13,7 @@ import tensorflow as tf
 import wandb
 from flax.core import frozen_dict
 from flax.training import checkpoints
+from jax import tree_util
 from tqdm import tqdm
 
 
@@ -169,4 +171,59 @@ def load_resnet10_params(agent, image_keys=("image",), public=True):
                 print(f"replaced {k} in pretrained_encoder")
 
     agent = agent.replace(state=agent.state.replace(params=new_params))
+    return agent
+
+
+def restore_optimizer_state(opt_state, restored):
+    return tree_util.tree_unflatten(
+        tree_util.tree_structure(opt_state), tree_util.tree_leaves(restored)
+    )
+
+
+def sac_policy_loader(agent, checkpoint_path):
+    # unfreeze the params from target agent
+    params = agent.state.params
+    target_params = agent.state.target_params
+
+    # restore from checkpoint
+    restored_state = checkpoints.restore_checkpoint(checkpoint_path, target=agent.state)
+    params["modules_actor"] = restored_state.params["modules_actor"]
+    target_params["modules_actor"] = restored_state.target_params["modules_actor"]
+
+    try:
+        params["modules_temperature"] = restored_state.params["modules_temperature"]
+        target_params["modules_temperature"] = restored_state.target_params[
+            "modules_temperature"
+        ]
+    except KeyError:
+        # if temperature not in checkpoint, check we are loading the IQL checkpoint
+        # and don't load the temperature
+        assert "modules_value" in restored_state.params
+        print("Temperature not found in IQL checkpoint, not loading temperature")
+        pass
+
+    # restore optimizer states
+    opt_states = dict(agent.state.opt_states)  # hard-copy
+    opt_states["actor"] = restored_state.opt_states["actor"]
+    try:
+        opt_states["temperature"] = restored_state.opt_states["temperature"]
+        opt_states = restore_optimizer_state(agent.state.opt_states, opt_states)
+    except KeyError:
+        # if temperature not in checkpoint, check we are loading the IQL checkpoint
+        # and don't load the temperature
+        assert "value" in restored_state.opt_states
+        print("Temperature not found in checkpoint, not loading temperature")
+        print("Also not loading optimizer state because we can't map over it")
+        opt_states = agent.state.opt_states  # restore the fresh optimizer state
+        pass
+
+    # put the params back into the agent
+    agent = agent.replace(
+        state=agent.state.replace(
+            params=params,
+            target_params=target_params,
+            step=restored_state.step,
+            opt_states=opt_states,
+        )
+    )
     return agent

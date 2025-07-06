@@ -13,7 +13,7 @@ from serl_launcher.common.optimizers import make_optimizer
 from serl_launcher.common.typing import Batch, Data, Params, PRNGKey
 from serl_launcher.networks.actor_critic_nets import Critic, Policy, ensemblize
 from serl_launcher.networks.lagrange import GeqLagrangeMultiplier
-from serl_launcher.networks.mlp import MLP
+from serl_launcher.networks.mlp import MLP, MLPResNet
 from serl_launcher.utils.train_utils import _unpack
 
 
@@ -362,7 +362,10 @@ class SACAgent(flax.struct.PyTreeNode):
             batch = self.config["augmentation_function"](batch, aug_rng)
 
         batch = batch.copy(
-            add_or_replace={"rewards": batch["rewards"] + self.config["reward_bias"]}
+            add_or_replace={
+                "rewards": batch["rewards"] * self.config["reward_scale"]
+                + self.config["reward_bias"]
+            }
         )
 
         # Compute gradients and update params
@@ -448,6 +451,7 @@ class SACAgent(flax.struct.PyTreeNode):
         critic_subsample_size: Optional[int] = None,
         image_keys: Iterable[str] = None,
         augmentation_function: Optional[callable] = None,
+        reward_scale: float = 1.0,
         reward_bias: float = 0.0,
         **kwargs,
     ):
@@ -498,6 +502,7 @@ class SACAgent(flax.struct.PyTreeNode):
                 target_entropy=target_entropy,
                 backup_entropy=backup_entropy,
                 image_keys=image_keys,
+                reward_scale=reward_scale,
                 reward_bias=reward_bias,
                 augmentation_function=augmentation_function,
                 n_actions=n_actions,
@@ -514,7 +519,7 @@ class SACAgent(flax.struct.PyTreeNode):
         actions: jnp.ndarray,
         # Model architecture
         encoder_type: str = "resnet-pretrained",
-        use_proprio: bool = False,
+        network_type: str = "mlp",
         critic_network_kwargs: dict = {
             "hidden_dims": [256, 256],
             "activate_final": True,
@@ -525,10 +530,11 @@ class SACAgent(flax.struct.PyTreeNode):
         },
         policy_kwargs: dict = {
             "tanh_squash_distribution": True,
-            "std_parameterization": "uniform",
+            "std_parameterization": "exp",  # TODO: check
         },
         critic_ensemble_size: int = 2,
         critic_subsample_size: Optional[int] = None,
+        use_proprio: bool = False,
         temperature_init: float = 1.0,
         image_keys: Iterable[str] = ("image",),
         augmentation_function: Optional[callable] = None,
@@ -537,6 +543,7 @@ class SACAgent(flax.struct.PyTreeNode):
         """
         Create a new pixel-based agent, with no encoders.
         """
+        assert network_type in ("mlp", "mlp_resnet")
 
         if encoder_type == "resnet":
             from serl_launcher.vision.resnet_v1 import resnetv1_configs
@@ -586,7 +593,8 @@ class SACAgent(flax.struct.PyTreeNode):
         }
 
         # Define networks
-        critic_backbone = partial(MLP, **critic_network_kwargs)
+        network_class = MLPResNet if network_type == "mlp_resnet" else MLP
+        critic_backbone = partial(network_class, **critic_network_kwargs)
         critic_backbone = ensemblize(critic_backbone, critic_ensemble_size)(
             name="critic_ensemble"
         )
@@ -594,9 +602,10 @@ class SACAgent(flax.struct.PyTreeNode):
             Critic, encoder=encoders["critic"], network=critic_backbone
         )(name="critic")
 
+        policy_backbone = partial(network_class, **policy_network_kwargs)
         policy_def = Policy(
             encoder=encoders["actor"],
-            network=MLP(**policy_network_kwargs),
+            network=policy_backbone(),
             action_dim=actions.shape[-1],
             **policy_kwargs,
             name="actor",

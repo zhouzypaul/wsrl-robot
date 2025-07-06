@@ -8,8 +8,8 @@ def get_config(updates=None):
     config.backup_entropy = False
     config.target_entropy = None
     config.soft_target_update_rate = 0.005
-    config.critic_ensemble_size = 2
-    config.critic_subsample_size = None
+    config.critic_ensemble_size = 10
+    config.critic_subsample_size = 2
     config.autotune_entropy = True
     config.temperature_init = 1e-2
 
@@ -18,14 +18,12 @@ def get_config(updates=None):
         {
             "activations": nn.tanh,
             "use_layer_norm": True,
-            "hidden_dims": [256, 256, 256, 256],
         }
     )
     config.policy_network_kwargs = ConfigDict(
         {
             "activations": nn.tanh,
             "use_layer_norm": True,
-            "hidden_dims": [256, 256, 256, 256],
         }
     )
     config.policy_kwargs = ConfigDict(

@@ -19,6 +19,7 @@ class _TimerContextManager:
 class Timer:
     def __init__(self):
         self.reset()
+        self.creation_time = time.time()
 
     def reset(self):
         self.counts = defaultdict(int)
@@ -50,6 +51,8 @@ class Timer:
 
     def get_average_times(self, reset=True):
         ret = {key: self.times[key] / self.counts[key] for key in self.counts}
+        elapsed_seconds = time.time() - self.creation_time
+        ret["total_elapsed_time_minutes"] = elapsed_seconds / 60.0
         if reset:
             self.reset()
         return ret
