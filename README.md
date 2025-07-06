@@ -1,5 +1,5 @@
-# WSRL: Efficient Online Reinforcement Learning Fine-Tuning Need Not Retain Offline Data
-
+# WSRL on robot
+This repository contains the code for running [WSRL](https://zhouzypaul.github.io/wsrl) on the Franka peg insertion task. For official WSRL (non-robot) code, please refer to [the official WSRL repo](www.github.com/zhouzypaul/wsrl)
 This project is built on top of HIL-SERL. See their README below for more details.
 
 ## Installation
