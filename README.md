@@ -152,9 +152,9 @@ We provide a step-by-step guide to run RL policies with HIL-SERL on a Franka rob
 
 Check out the [Run with Franka Arm](/docs/franka_walkthrough.md)
  - [RAM Insertion](/docs/franka_walkthrough.md#1-ram-insertion)
- - [USB Pickup and Insertion](/docs/real_franka.md#2-usb-pick-up-and-insertion)
- - [Object Handover](/docs/real_franka.md#3-object-handover)
- - [Egg Flip](/docs/real_franka.md#4-egg-flip)
+ - [USB Pickup and Insertion](/docs/franka_walkthrough.md#2-usb-pick-up-and-insertion)
+ - [Object Handover](/docs/franka_walkthrough.md#3-object-handover)
+ - [Egg Flip](/docs/franka_walkthrough.md#4-egg-flip)
 
 <!-- ## Contribution
 

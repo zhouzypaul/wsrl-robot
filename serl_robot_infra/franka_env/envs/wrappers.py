@@ -246,7 +246,6 @@ class SpacemouseIntervention(gym.ActionWrapper):
             else:
                 gripper_action = np.zeros((1,))
             expert_a = np.concatenate((expert_a, gripper_action), axis=0)
-            expert_a[:6] += np.random.uniform(-0.5, 0.5, size=6)
 
         if self.action_indices is not None:
             filtered_expert_a = np.zeros_like(expert_a)
